@@ -2,70 +2,81 @@ import streamlit as st
 import pandas as pd
 import json
 import matplotlib.pyplot as plt
+import numpy as np
 
-# 1. ĐỌC VÀ TIỀN XỬ LÝ DỮ LIỆU
-file_path = 'Quan trắc thực địa (1).json' # Đảm bảo file nằm cùng thư mục
-with open(file_path, 'r', encoding='utf-8') as f:
-    data = json.load(f)
+# 1. CÀI ĐẶT GIAO DIỆN TRANG WEB
+st.set_page_config(page_title="Dashboard Quan Trắc", layout="wide")
+st.title("🌱 Bảng Điều Khiển Cảm Biến Quan Trắc Thực Địa")
 
-df = pd.DataFrame(data)
+# 2. ĐỌC DỮ LIỆU
+file_path = 'data.json' # Nhớ đảm bảo tên file trên GitHub chính xác là data.json
 
-# Chuyển đổi định dạng thời gian (YYYY-MM-DD HH-MM-SS)
-df['Thời gian'] = pd.to_datetime(df['Thời gian'], format='%Y-%m-%d %H-%M-%S')
+try:
+    with open(file_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    df = pd.DataFrame(data)
+    df['Thời gian'] = pd.to_datetime(df['Thời gian'], format='%Y-%m-%d %H-%M-%S')
 
-# Xử lý sự khác biệt về tên cột (Độ ẩm vs humiKK)
-if 'Độ ẩm' in df.columns and 'humiKK' in df.columns:
-    df['Moisture'] = df['Độ ẩm'].fillna(df['humiKK']).astype(float)
-elif 'Độ ẩm' in df.columns:
-    df['Moisture'] = df['Độ ẩm'].astype(float)
-else:
-    df['Moisture'] = df['humiKK'].astype(float)
+    # Xử lý cột độ ẩm
+    if 'Độ ẩm' in df.columns and 'humiKK' in df.columns:
+        df['Moisture'] = df['Độ ẩm'].fillna(df['humiKK']).astype(float)
+    elif 'Độ ẩm' in df.columns:
+        df['Moisture'] = df['Độ ẩm'].astype(float)
+    else:
+        df['Moisture'] = df['humiKK'].astype(float)
 
-# Lọc STT từ 1 đến 5
-df['STT'] = pd.to_numeric(df['STT'], errors='coerce')
-df = df[df['STT'].isin([1, 2, 3, 4, 5])]
+    df['STT'] = pd.to_numeric(df['STT'], errors='coerce')
+    df = df[df['STT'].isin([1, 2, 3, 4, 5])]
 
-# Lọc khung giờ từ 5:00 AM đến 23:59 PM
-df = df.set_index('Thời gian')
-df_filtered = df.between_time('05:00', '23:59').reset_index()
+    df = df.set_index('Thời gian')
+    df_filtered = df.between_time('05:00', '23:59').reset_index()
 
-# 2. LỌC MỘT NGÀY TƯỚI BAO NHIÊU LẦN
-# Sắp xếp theo STT và Thời gian để tính độ lệch
-df_filtered = df_filtered.sort_values(by=['STT', 'Thời gian'])
+    # 3. TÍNH TOÁN SỐ LẦN TƯỚI
+    df_filtered = df_filtered.sort_values(by=['STT', 'Thời gian'])
+    df_filtered['Moisture_Diff'] = df_filtered.groupby('STT')['Moisture'].diff()
 
-# Tính sự chênh lệch độ ẩm giữa 2 lần đo liên tiếp
-df_filtered['Moisture_Diff'] = df_filtered.groupby('STT')['Moisture'].diff()
+    THRESHOLD = 5.0 
+    watering_events = df_filtered[df_filtered['Moisture_Diff'] > THRESHOLD].copy()
+    watering_events['Ngày'] = watering_events['Thời gian'].dt.date
 
-# Giả định: Nếu độ ẩm tăng đột ngột > 5 đơn vị, đó là 1 lần tưới. 
-# (Bạn có thể thay đổi số 5.0 này cho phù hợp với thực tế cảm biến của bạn)
-THRESHOLD = 5.0 
-df_filtered['Is_Watering'] = df_filtered['Moisture_Diff'] > THRESHOLD
+    watering_counts = watering_events.groupby(['Ngày', 'STT']).size().reset_index(name='Số lần tưới')
 
-# Đếm số lần tưới theo ngày và STT
-df_filtered['Ngày'] = df_filtered['Thời gian'].dt.date
-watering_counts = df_filtered[df_filtered['Is_Watering']].groupby(['Ngày', 'STT']).size().reset_index(name='Số lần tưới')
+    all_stts = pd.DataFrame({'STT': [1, 2, 3, 4, 5]})
+    if not watering_counts.empty:
+        unique_days = watering_counts['Ngày'].unique()
+        idx = pd.MultiIndex.from_product([unique_days, all_stts['STT']], names=['Ngày', 'STT'])
+        watering_counts = watering_counts.set_index(['Ngày', 'STT']).reindex(idx, fill_value=0).reset_index()
 
-print("--- THỐNG KÊ SỐ LẦN TƯỚI TRONG NGÀY ---")
-print(watering_counts.to_string(index=False))
-print("-" * 40)
+    # 4. HIỂN THỊ LÊN TRANG WEB STREAMLIT (Thay vì dùng print)
+    st.subheader("📊 Bảng thống kê số lần tưới trong ngày")
+    st.dataframe(watering_counts, use_container_width=True) # Hiện bảng trên web
+    
+    st.info("Lưu ý: STT 1, 2, 4 có số lần tưới = 0 vì cảm biến không ghi nhận được sự thay đổi độ ẩm.")
 
-# 3. VẼ BIỂU ĐỒ DẠNG LÊN XUỐNG (LINE CHART)
-plt.figure(figsize=(14, 7))
+    # 5. VẼ VÀ HIỂN THỊ BIỂU ĐỒ LÊN WEB (Thay vì dùng plt.show)
+    if not watering_counts.empty:
+        st.subheader("📈 Biểu đồ chi tiết")
+        day_to_plot = watering_counts['Ngày'].iloc[0]
+        plot_data = watering_counts[watering_counts['Ngày'] == day_to_plot]
+        
+        # Khởi tạo khung vẽ
+        fig, ax = plt.subplots(figsize=(10, 5))
+        bars = ax.bar(plot_data['STT'].astype(str), plot_data['Số lần tưới'], color='skyblue', edgecolor='black')
+        
+        for bar in bars:
+            yval = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, int(yval), ha='center', va='bottom', fontweight='bold')
 
-for stt in range(1, 6):
-    df_stt = df_filtered[df_filtered['STT'] == stt]
-    if not df_stt.empty:
-        plt.plot(df_stt['Thời gian'], df_stt['Moisture'], label=f'Khu vực {stt}', marker='.', linewidth=1.5)
+        ax.set_title(f'Số lần tưới của các khu vực trong ngày {day_to_plot}', fontsize=14)
+        ax.set_xlabel('Khu vực (STT)')
+        ax.set_ylabel('Tổng số lần tưới')
+        ax.set_yticks(np.arange(0, max(plot_data['Số lần tưới'].max() + 2, 5), 1))
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+        
+        # Lệnh quan trọng nhất để đưa biểu đồ lên web
+        st.pyplot(fig) 
 
-plt.title('Biểu đồ biến thiên Độ ẩm theo thời gian (05:00 - 23:59)', fontsize=14, fontweight='bold')
-plt.xlabel('Thời gian', fontsize=12)
-plt.ylabel('Độ ẩm (%)', fontsize=12)
-plt.legend(title="Số thứ tự (STT)")
-plt.grid(True, linestyle='--', alpha=0.7)
-plt.xticks(rotation=45)
-plt.tight_layout()
-
-# Hiển thị biểu đồ
-plt.show()
-plt.savefig('bieu_do_do_am.png')
-print("Đã lưu biểu đồ thành công!")
+except FileNotFoundError:
+    # Nếu quên upload data.json, web sẽ hiện thông báo lỗi màu đỏ này thay vì trắng tinh
+    st.error("🚨 Không tìm thấy file dữ liệu. Vui lòng kiểm tra xem bạn đã upload file data.json lên GitHub chưa!")
