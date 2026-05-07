@@ -20,52 +20,46 @@ st.markdown("""
         border-right: 1px solid #30363d;
     }
     
-    /* 1. Nhãn Tiêu đề bên ngoài (Tải lên file...) */
-    [data-testid="stFileUploader"] label {
-        display: block;
-        text-align: center !important;
+    /* --- SỬA CHÍNH XÁC KHUNG UPLOAD --- */
+    
+    /* 1. Nhãn Tiêu đề bên ngoài (Tải lên file JSON...) */
+    [data-testid="stFileUploader"] > div > label {
         color: #ffffff !important;
         font-weight: bold !important;
         font-size: 1.1rem !important;
-        margin-bottom: 10px !important;
+        text-align: center !important;
+        display: block;
+        margin-bottom: 10px;
     }
 
-    /* 2. Khung kéo thả (Dropzone) - Nền tối, Viền Cyan nét đứt */
+    /* 2. Khung kéo thả (Dropzone) - Nền trắng, Viền Cyan */
     [data-testid="stFileUploaderDropzone"] {
-        background-color: #161b22 !important;  
-        border: 2px dashed #00d4ff !important; 
+        background-color: #ffffff !important;  /* NỀN TRẮNG BÊN TRONG KHUNG */
+        border: 3px dashed #00d4ff !important; /* VIỀN CYAN */
         border-radius: 12px;
         padding: 20px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        text-align: center;
     }
 
-    /* 3. Phần CHỮ bên trong khung (Drag and drop...) - Chữ đen, Nền trắng, In đậm, Căn giữa */
-    [data-testid="stFileUploaderDropzone"] section div div span,
+    /* 3. Tất cả CHỮ bên trong khung (Drag and drop...) - Màu đen, In đậm */
+    [data-testid="stFileUploaderDropzone"] div, 
+    [data-testid="stFileUploaderDropzone"] span, 
     [data-testid="stFileUploaderDropzone"] small {
-        background-color: #FFFFFF !important; 
-        color: #000000 !important;            
-        font-weight: bold !important;         
-        padding: 4px 10px;
-        border-radius: 5px;
-        display: inline-block;
-        margin-bottom: 5px;
+        color: #000000 !important;    /* CHỮ ĐEN */
+        font-weight: bold !important; /* IN ĐẬM */
     }
     
-    /* 4. Nút Browse files */
+    /* 4. Nút bấm (Browse files / Upload) bên trong khung */
     [data-testid="stFileUploaderDropzone"] button {
-        background-color: #FFFFFF !important; 
-        color: #000000 !important;            
-        font-weight: bold !important;         
-        border: 2px solid #000000 !important; 
-        margin: 10px auto 0 auto;
-        display: block;
+        background-color: #00d4ff !important; /* Nền nút màu Cyan cho nổi bật */
+        color: #000000 !important;            /* Chữ đen */
+        font-weight: bold !important;         /* In đậm */
+        border: none !important; 
+        border-radius: 8px;
+        padding: 5px 15px;
+        margin-top: 10px;
     }
 
-    /* Các tiêu đề khác vẫn giữ chữ trắng */
+    /* Đảm bảo các tiêu đề khác bên ngoài không bị ảnh hưởng */
     h1, h2, h3, p {
         color: #ffffff !important;
     }
@@ -77,7 +71,6 @@ st.title("📊 Công cụ Phân tích Dữ liệu Quan trắc")
 # --- 1. CÁC HÀM XỬ LÝ DỮ LIỆU ---
 @st.cache_data
 def normalize_keys(data):
-    # ĐÃ SỬA: Không dùng .lower() nữa để giữ nguyên tên cột (Thời gian, STT,...)
     if isinstance(data, list): return [normalize_keys(item) for item in data]
     elif isinstance(data, dict): return {str(k).strip(): normalize_keys(v) for k, v in data.items()}
     return data
@@ -103,14 +96,12 @@ def load_and_process_data(file_bytes):
     df = pd.DataFrame(flat_list)
     
     time_col = None
-    # Tìm cột thời gian không phân biệt hoa thường
     for col in df.columns:
         if 'thời gian' in col.lower() or 'time' in col.lower():
-            time_col = col # Giữ đúng định dạng tên gốc (VD: "Thời gian")
+            time_col = col 
             df[col] = pd.to_datetime(df[col].astype(str).str.replace('-', ':').str.replace(' ', 'T'), errors='coerce')
             break
             
-    # Ép kiểu dữ liệu số cho các cột còn lại
     for col in df.columns:
         if col != time_col: df[col] = pd.to_numeric(df[col], errors='ignore')
     return df, time_col
@@ -125,7 +116,6 @@ if uploaded_file is not None:
     try:
         df, time_col = load_and_process_data(uploaded_file.getvalue())
         
-        # Tìm cột STT một cách linh hoạt
         stt_col = next((c for c in df.columns if 'stt' in c.lower()), None)
         
         if stt_col:
