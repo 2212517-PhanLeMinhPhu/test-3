@@ -9,7 +9,7 @@ st.set_page_config(page_title="JSON Data Pro - Custom Upload", layout="wide")
 
 st.markdown("""
     <style>
-    /* Nền chính của app */
+    /* Nền chính của app (Dark Mode) */
     .stApp {
         background-color: #0E1117;
         color: #FAFAFA;
@@ -20,50 +20,50 @@ st.markdown("""
         border-right: 1px solid #30363d;
     }
     
-    /* --- CẤU HÌNH KHUNG UPLOAD --- */
-    [data-testid="stFileUploader"] {
-        background-color: #1f2937;
-        padding: 20px;
-        border-radius: 15px;
-        border: 2px dashed #444;
-    }
+    /* --- TÙY CHỈNH CHÍNH XÁC KHUNG UPLOAD --- */
     
-    /* 1. Đưa chữ Label (Tải lên file...) ra giữa, nền trắng, chữ đen */
+    /* 1. Nhãn Tiêu đề (Tải lên file JSON...) */
     [data-testid="stFileUploader"] label {
         display: block;
-        text-align: center; /* Căn giữa chữ */
+        text-align: center;                   /* Căn giữa */
         background-color: #FFFFFF !important; /* Nền trắng */
-        color: #000000 !important; /* Chữ đen */
+        color: #000000 !important;            /* Chữ đen */
+        font-weight: bold !important;         /* In đậm */
+        font-size: 1.1rem !important;
         padding: 8px 15px;
-        border-radius: 10px;
-        font-weight: bold !important;
-        font-size: 1rem !important;
-        margin: 0 auto 20px auto !important; /* Căn lề tự động để nằm giữa khung */
-        width: fit-content; /* Độ rộng ôm theo chữ */
+        border-radius: 8px;
+        width: fit-content;
+        margin: 0 auto 10px auto !important;  /* Đẩy ra giữa Sidebar */
     }
-    
-    /* 2. Căn giữa các thành phần bên trong (Icon, chữ hướng dẫn, nút Browse) */
+
+    /* 2. Khung kéo thả file (Dropzone) */
     [data-testid="stFileUploaderDropzone"] {
+        background-color: #FFFFFF !important;  /* Nền trắng */
+        border: 3px dashed #00d4ff !important; /* Khung viền màu Cyan */
+        border-radius: 12px;
         display: flex;
         justify-content: center;
         align-items: center;
         text-align: center;
+        padding: 20px;
+    }
+
+    /* 3. Chữ bên trong khu vực kéo thả (Drag and drop file here, Limit 200MB) */
+    [data-testid="stFileUploader"] section div div span,
+    [data-testid="stFileUploader"] section div div small {
+        color: #000000 !important;    /* Đổi chữ sang MÀU ĐEN */
+        font-weight: bold !important; /* IN ĐẬM chữ */
     }
     
-    /* Căn giữa phần text hướng dẫn nhỏ bên dưới */
-    [data-testid="stFileUploader"] section > div {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
+    /* 4. Nút "Browse files" bên trong khung */
+    [data-testid="stFileUploader"] button {
+        color: #000000 !important;    /* Chữ đen */
+        font-weight: bold !important; /* In đậm */
+        border: 2px solid #000000 !important; /* Viền đen cho nút */
     }
 
-    /* Màu chữ hướng dẫn (Drag and drop file here) */
-    [data-testid="stFileUploader"] small {
-        color: #bbbbbb !important;
-    }
-
-    /* Màu chữ tiêu đề và các phần khác */
-    h1, h2, h3, p, span {
+    /* Đảm bảo chữ bên ngoài (tiêu đề biểu đồ, text thường) vẫn là màu trắng */
+    h1, h2, h3, p {
         color: #ffffff !important;
     }
     </style>
@@ -112,8 +112,7 @@ def load_and_process_data(file_bytes):
 # --- 2. GIAO DIỆN SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Cấu hình")
-    # Widget Upload
-    uploaded_file = st.file_uploader("Tải lên file JSON quan trắc", type=['json'])
+    uploaded_file = st.file_uploader("TẢI LÊN FILE JSON QUAN TRẮC", type=['json'])
 
 # --- 3. HIỂN THỊ DỮ LIỆU ---
 if uploaded_file is not None:
