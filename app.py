@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 import plotly.express as px
+import unicodedata
 
 # --- 0. CẤU HÌNH GIAO DIỆN & CHẾ ĐỘ SÁNG/TỐI ---
 st.set_page_config(page_title="JSON Data Pro", layout="wide")
@@ -83,23 +84,33 @@ def load_and_process_data(file_bytes):
     if isinstance(raw_data, dict): raw_data = [raw_data]
     clean_json = normalize_keys(raw_data)
     
-    # ĐÂY LÀ PHẦN FIX LỖI VÀ TĂNG TỐC: 
-    # Đưa vào list trước rồi gọi pd.DataFrame 1 lần duy nhất thay vì dùng .append()
     flat_list = [flatten_json(item) for item in clean_json]
     df = pd.DataFrame(flat_list)
     
     time_col = None
-    # Tìm cột thời gian
+    
+    # 1. Tìm và parse cột thời gian cực chuẩn
     for col in df.columns:
-        if 'thời gian' in col.lower() or 'time' in col.lower() or 'tg' in col.lower():
+        # unicodedata giúp giải quyết triệt để lỗi gõ tiếng việt khác bộ gõ
+        col_norm = unicodedata.normalize('NFKC', str(col)).lower()
+        if 'thời gian' in col_norm or 'time' in col_norm or 'tg' in col_norm:
             time_col = col 
-            df[col] = pd.to_datetime(df[col].astype(str).str.replace('-', ':').str.replace(' ', 'T'), errors='coerce')
+            # Đọc đúng format YYYY-MM-DD HH-MM-SS của bạn
+            parsed_time = pd.to_datetime(df[col], format='%Y-%m-%d %H-%M-%S', errors='coerce')
+            # Fill các ô lỗi (nếu có) bằng hàm tự động đoán của Pandas
+            df[col] = parsed_time.fillna(pd.to_datetime(df[col], errors='coerce'))
             break
             
-    # Chuyển các cột còn lại sang dạng số
+    # 2. Chuyển các cột còn lại sang dạng số
     for col in df.columns:
-        if col != time_col: df[col] = pd.to_numeric(df[col], errors='ignore')
-        
+        if col != time_col and '_id' not in col: 
+            df[col] = pd.to_numeric(df[col], errors='ignore')
+            
+    # 3. CHỐNG LỖI ARROW: Ép các cột chứa cả chữ và số (Object) về dạng chuỗi chuẩn
+    for col in df.columns:
+        if df[col].dtype == 'object' and col != time_col:
+            df[col] = df[col].astype(str)
+            
     return df, time_col
 
 # --- 2. GIAO DIỆN UPLOAD (SIDEBAR) ---
@@ -110,11 +121,10 @@ with st.sidebar:
 # --- 3. HIỂN THỊ DỮ LIỆU ---
 if uploaded_file is not None:
     try:
-        # Thanh trạng thái loading để UX tốt hơn
-        with st.spinner("Đang xử lý dữ liệu... Vui lòng đợi nhé!"):
+        with st.spinner("Đang phân tích dữ liệu... Vui lòng đợi nhé!"):
             df, time_col = load_and_process_data(uploaded_file.getvalue())
             
-        stt_col = next((c for c in df.columns if 'stt' in c.lower()), None)
+        stt_col = next((c for c in df.columns if 'stt' in unicodedata.normalize('NFKC', str(c)).lower()), None)
         
         if stt_col:
             stt_list = sorted(df[stt_col].dropna().unique().astype(str))
@@ -134,7 +144,7 @@ if uploaded_file is not None:
                 fig = px.line(df_filtered, x=time_col, y=selected_metrics, template=plotly_template, markers=True)
                 fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig, use_container_width=True)
-                with st.expander("Xem bảng dữ liệu"):
+                with st.expander("Xem bảng dữ liệu chi tiết"):
                     st.dataframe(df_filtered, use_container_width=True)
             else:
                 st.warning("Vui lòng chọn ít nhất một thông số.")
