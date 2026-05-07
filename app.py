@@ -22,7 +22,7 @@ st.markdown("""
     
     /* --- CẤU HÌNH KHUNG UPLOAD CHUẨN TRUNG TÂM --- */
     
-    /* 1. Nhãn Tiêu đề bên ngoài - Căn giữa tuyệt đối & Đổi màu Cyan */
+    /* 1. Nhãn Tiêu đề bên ngoài - Căn giữa tuyệt đối & Đổi màu TRẮNG */
     [data-testid="stFileUploader"] label {
         display: flex !important;
         width: 100% !important;
@@ -31,7 +31,7 @@ st.markdown("""
     }
     
     [data-testid="stFileUploader"] label p {
-        color: #00d4ff !important; /* Đã đổi sang màu Cyan cho đồng bộ và dễ nhìn */
+        color: #ffffff !important; /* Đã đổi sang màu TRẮNG theo yêu cầu */
         font-weight: bold !important;
         font-size: 1.1rem !important;
         text-align: center !important;
@@ -62,7 +62,7 @@ st.markdown("""
         display: block;
     }
     
-    /* 4. Nút bấm Browse files - Căn giữa */
+    /* 4. Nút bấm Browse files - Căn giữa, màu nền Cyan */
     [data-testid="stFileUploaderDropzone"] button {
         background-color: #00d4ff !important; 
         color: #000000 !important;            
@@ -74,7 +74,7 @@ st.markdown("""
         display: inline-block;
     }
 
-    /* Giữ màu trắng cho các thành phần khác */
+    /* Giữ màu trắng cho các thành phần tiêu đề khác */
     h1, h2, h3 { color: #ffffff !important; }
     </style>
     """, unsafe_allow_html=True)
