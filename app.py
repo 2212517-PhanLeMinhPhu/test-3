@@ -20,19 +20,25 @@ st.markdown("""
         border-right: 1px solid #30363d;
     }
     
-    /* --- CẤU HÌNH KHUNG UPLOAD CHUẨN --- */
+    /* --- CẤU HÌNH KHUNG UPLOAD CHUẨN TRUNG TÂM --- */
     
-    /* 1. Nhãn Tiêu đề bên ngoài */
-    [data-testid="stFileUploader"] > div > label {
+    /* 1. Nhãn Tiêu đề bên ngoài - ÉP CĂN GIỮA TUYỆT ĐỐI */
+    [data-testid="stFileUploader"] label {
+        display: flex !important;
+        width: 100% !important;
+        justify-content: center !important;
+        margin-bottom: 5px !important;
+    }
+    
+    [data-testid="stFileUploader"] label p {
         color: #ffffff !important;
         font-weight: bold !important;
         font-size: 1.1rem !important;
         text-align: center !important;
-        display: block;
-        margin-bottom: 10px;
+        margin: 0 !important;
     }
 
-    /* 2. Khung kéo thả (Dropzone) - Nền trắng, Viền Cyan, CĂN GIỮA TUYỆT ĐỐI */
+    /* 2. Khung kéo thả (Dropzone) - Nền trắng, Viền Cyan, Căn giữa */
     [data-testid="stFileUploaderDropzone"] {
         background-color: #ffffff !important;  
         border: 3px dashed #00d4ff !important; 
@@ -40,8 +46,8 @@ st.markdown("""
         padding: 30px 20px;
         display: flex !important;
         flex-direction: column !important;
-        align-items: center !important;     /* Căn giữa theo chiều ngang */
-        justify-content: center !important;  /* Căn giữa theo chiều dọc */
+        align-items: center !important;     
+        justify-content: center !important;  
         text-align: center !important;
     }
 
@@ -53,6 +59,7 @@ st.markdown("""
         font-weight: bold !important; 
         text-align: center !important;
         width: 100%;
+        display: block;
     }
     
     /* 4. Nút bấm Browse files - Căn giữa */
@@ -68,7 +75,7 @@ st.markdown("""
     }
 
     /* Giữ màu trắng cho các thành phần khác */
-    h1, h2, h3, p { color: #ffffff !important; }
+    h1, h2, h3 { color: #ffffff !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -77,7 +84,6 @@ st.title("📊 Công cụ Phân tích Dữ liệu Quan trắc")
 # --- 1. CÁC HÀM XỬ LÝ DỮ LIỆU ---
 @st.cache_data
 def normalize_keys(data):
-    # Giữ nguyên tên cột gốc (không dùng .lower()) để tránh lỗi biểu đồ
     if isinstance(data, list): return [normalize_keys(item) for item in data]
     elif isinstance(data, dict): return {str(k).strip(): normalize_keys(v) for k, v in data.items()}
     return data
