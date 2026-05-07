@@ -31,16 +31,16 @@ st.markdown("""
     }
     
     [data-testid="stFileUploader"] label p {
-        color: #ffffff !important; /* Đã đổi sang màu TRẮNG theo yêu cầu */
+        color: #ffffff !important; 
         font-weight: bold !important;
         font-size: 1.1rem !important;
         text-align: center !important;
         margin: 0 !important;
     }
 
-    /* 2. Khung kéo thả (Dropzone) - Nền trắng, Viền Cyan, Căn giữa */
+    /* 2. Khung kéo thả (Dropzone) - Nền TỐI, Viền Cyan, Căn giữa */
     [data-testid="stFileUploaderDropzone"] {
-        background-color: #ffffff !important;  
+        background-color: #161b22 !important;  /* Trả lại nền tối để chữ trắng nổi bật */
         border: 3px dashed #00d4ff !important; 
         border-radius: 12px;
         padding: 30px 20px;
@@ -51,18 +51,18 @@ st.markdown("""
         text-align: center !important;
     }
 
-    /* 3. Chữ bên trong khung - Màu đen, In đậm, Căn giữa */
+    /* 3. Chữ bên trong khung - Màu TRẮNG, In đậm, Căn giữa */
     [data-testid="stFileUploaderDropzone"] div, 
     [data-testid="stFileUploaderDropzone"] span, 
     [data-testid="stFileUploaderDropzone"] small {
-        color: #000000 !important;    
+        color: #ffffff !important;    /* Đã đổi sang màu TRẮNG theo yêu cầu */
         font-weight: bold !important; 
         text-align: center !important;
         width: 100%;
         display: block;
     }
     
-    /* 4. Nút bấm Browse files - Căn giữa, màu nền Cyan */
+    /* 4. Nút bấm Browse files - Căn giữa, nền Cyan, CHỮ ĐEN */
     [data-testid="stFileUploaderDropzone"] button {
         background-color: #00d4ff !important; 
         color: #000000 !important;            
