@@ -20,9 +20,9 @@ st.markdown("""
         border-right: 1px solid #30363d;
     }
     
-    /* --- SỬA CHÍNH XÁC KHUNG UPLOAD --- */
+    /* --- CẤU HÌNH KHUNG UPLOAD CHUẨN --- */
     
-    /* 1. Nhãn Tiêu đề bên ngoài (Tải lên file JSON...) */
+    /* 1. Nhãn Tiêu đề bên ngoài */
     [data-testid="stFileUploader"] > div > label {
         color: #ffffff !important;
         font-weight: bold !important;
@@ -32,37 +32,43 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    /* 2. Khung kéo thả (Dropzone) - Nền trắng, Viền Cyan */
+    /* 2. Khung kéo thả (Dropzone) - Nền trắng, Viền Cyan, CĂN GIỮA TUYỆT ĐỐI */
     [data-testid="stFileUploaderDropzone"] {
-        background-color: #ffffff !important;  /* NỀN TRẮNG BÊN TRONG KHUNG */
-        border: 3px dashed #00d4ff !important; /* VIỀN CYAN */
+        background-color: #ffffff !important;  
+        border: 3px dashed #00d4ff !important; 
         border-radius: 12px;
-        padding: 20px;
+        padding: 30px 20px;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;     /* Căn giữa theo chiều ngang */
+        justify-content: center !important;  /* Căn giữa theo chiều dọc */
+        text-align: center !important;
     }
 
-    /* 3. Tất cả CHỮ bên trong khung (Drag and drop...) - Màu đen, In đậm */
+    /* 3. Chữ bên trong khung - Màu đen, In đậm, Căn giữa */
     [data-testid="stFileUploaderDropzone"] div, 
     [data-testid="stFileUploaderDropzone"] span, 
     [data-testid="stFileUploaderDropzone"] small {
-        color: #000000 !important;    /* CHỮ ĐEN */
-        font-weight: bold !important; /* IN ĐẬM */
+        color: #000000 !important;    
+        font-weight: bold !important; 
+        text-align: center !important;
+        width: 100%;
     }
     
-    /* 4. Nút bấm (Browse files / Upload) bên trong khung */
+    /* 4. Nút bấm Browse files - Căn giữa */
     [data-testid="stFileUploaderDropzone"] button {
-        background-color: #00d4ff !important; /* Nền nút màu Cyan cho nổi bật */
-        color: #000000 !important;            /* Chữ đen */
-        font-weight: bold !important;         /* In đậm */
+        background-color: #00d4ff !important; 
+        color: #000000 !important;            
+        font-weight: bold !important;         
         border: none !important; 
         border-radius: 8px;
-        padding: 5px 15px;
-        margin-top: 10px;
+        padding: 8px 20px;
+        margin-top: 15px !important;
+        display: inline-block;
     }
 
-    /* Đảm bảo các tiêu đề khác bên ngoài không bị ảnh hưởng */
-    h1, h2, h3, p {
-        color: #ffffff !important;
-    }
+    /* Giữ màu trắng cho các thành phần khác */
+    h1, h2, h3, p { color: #ffffff !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -71,6 +77,7 @@ st.title("📊 Công cụ Phân tích Dữ liệu Quan trắc")
 # --- 1. CÁC HÀM XỬ LÝ DỮ LIỆU ---
 @st.cache_data
 def normalize_keys(data):
+    # Giữ nguyên tên cột gốc (không dùng .lower()) để tránh lỗi biểu đồ
     if isinstance(data, list): return [normalize_keys(item) for item in data]
     elif isinstance(data, dict): return {str(k).strip(): normalize_keys(v) for k, v in data.items()}
     return data
@@ -115,7 +122,6 @@ with st.sidebar:
 if uploaded_file is not None:
     try:
         df, time_col = load_and_process_data(uploaded_file.getvalue())
-        
         stt_col = next((c for c in df.columns if 'stt' in c.lower()), None)
         
         if stt_col:
@@ -126,7 +132,7 @@ if uploaded_file is not None:
             df_filtered = df
 
         if time_col and not df_filtered.empty:
-            st.subheader(f"📈 Biểu đồ thông số")
+            st.subheader(f"📈 Biểu đồ thông số cho thiết bị {selected_stt if stt_col else ''}")
             numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
             if stt_col in numeric_cols: numeric_cols.remove(stt_col)
             
@@ -139,10 +145,7 @@ if uploaded_file is not None:
                 with st.expander("Xem bảng dữ liệu"):
                     st.dataframe(df_filtered, use_container_width=True)
             else:
-                st.warning("Vui lòng chọn ít nhất một thông số để hiển thị.")
-        else:
-            st.error("Dữ liệu không có thông tin thời gian hợp lệ.")
-            
+                st.warning("Vui lòng chọn ít nhất một thông số.")
     except Exception as e:
         st.error(f"Lỗi: {e}")
 else:
