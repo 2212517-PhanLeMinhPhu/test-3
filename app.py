@@ -41,6 +41,11 @@ def parse_json_data(file_bytes):
     # Chuẩn hóa tên cột
     df.columns = [unicodedata.normalize('NFC', str(c)).strip().lower() for c in df.columns]
     
+    # --- ĐÃ FIX LỖI Ở ĐÂY ---
+    # Lọc bỏ các cột trùng tên phát sinh do quá trình đưa về chữ thường
+    # Giữ lại cột xuất hiện đầu tiên, xóa các cột bị trùng tên phía sau
+    df = df.loc[:, ~df.columns.duplicated()].copy()
+    
     # Bỏ các cột hệ thống (như _id.$oid)
     cols_to_drop = [c for c in df.columns if '_id' in c]
     df.drop(columns=cols_to_drop, inplace=True, errors='ignore')
@@ -52,18 +57,20 @@ def parse_json_data(file_bytes):
     for col in df.columns:
         if 'thời gian' in col or 'time' in col or 'tg' in col:
             time_col = col
-        elif 'stt' in col:
-            stt_col = col
+            break # Tìm thấy cột khớp thì dừng, tránh chọn nhầm cột khác
             
-    # Xử lý thời gian - ĐÃ FIX LỖI MIXED TIMEZONES Ở ĐÂY
+    for col in df.columns:
+        if 'stt' in col:
+            stt_col = col
+            break
+            
+    # Xử lý thời gian (Đã bao gồm xử lý Mix Timezones)
     if time_col:
-        # Thêm utc=True để tự động xử lý và đồng bộ mọi loại múi giờ có trong dữ liệu
         df[time_col] = pd.to_datetime(df[time_col], errors='coerce', utc=True)
-        # (Tùy chọn) Chuyển múi giờ về giờ Việt Nam (+7) nếu muốn
         try:
             df[time_col] = df[time_col].dt.tz_convert('Asia/Ho_Chi_Minh')
-        except:
-            pass # Nếu không có múi giờ thì bỏ qua
+        except Exception:
+            pass 
             
         df.dropna(subset=[time_col], inplace=True)
         
@@ -76,7 +83,7 @@ def parse_json_data(file_bytes):
         if col != time_col and col != stt_col:
             df[col] = pd.to_numeric(df[col], errors='coerce')
             
-    # Xóa các cột rỗng
+    # Xóa các cột rỗng (Toàn NaN)
     df.dropna(axis=1, how='all', inplace=True)
     
     return df, time_col, stt_col
