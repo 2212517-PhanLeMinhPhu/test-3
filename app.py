@@ -32,14 +32,13 @@ st.markdown(f"""
 
 st.title("📊 Công cụ Phân tích Dữ liệu Quan trắc")
 
-# --- 1. XỬ LÝ DỮ LIỆU CỐT LÕI (CHỐNG LỖI 100%) ---
+# --- 1. XỬ LÝ DỮ LIỆU CỐT LÕI ---
 @st.cache_data
 def parse_json_data(file_bytes):
-    # Đọc JSON và dùng thư viện chuẩn để trải phẳng (chống lỗi _id và lồng nhau)
     raw_data = json.loads(file_bytes)
     df = pd.json_normalize(raw_data)
     
-    # Chuẩn hóa 100% tên cột: Chữ thường, xóa khoảng trắng, Unicode chuẩn
+    # Chuẩn hóa tên cột
     df.columns = [unicodedata.normalize('NFC', str(c)).strip().lower() for c in df.columns]
     
     # Bỏ các cột hệ thống (như _id.$oid)
@@ -49,33 +48,35 @@ def parse_json_data(file_bytes):
     time_col = None
     stt_col = None
     
-    # Xác định cột quan trọng
+    # Xác định cột thời gian và thiết bị
     for col in df.columns:
         if 'thời gian' in col or 'time' in col or 'tg' in col:
             time_col = col
         elif 'stt' in col:
             stt_col = col
             
-    # Xử lý thời gian
+    # Xử lý thời gian - ĐÃ FIX LỖI MIXED TIMEZONES Ở ĐÂY
     if time_col:
-        # Ép chuẩn ngày giờ, ưu tiên format có gạch ngang trước
-        df[time_col] = pd.to_datetime(df[time_col], format='%Y-%m-%d %H-%M-%S', errors='coerce').fillna(
-            pd.to_datetime(df[time_col], errors='coerce')
-        )
-        # Bỏ các dòng bị lỗi không có thời gian
+        # Thêm utc=True để tự động xử lý và đồng bộ mọi loại múi giờ có trong dữ liệu
+        df[time_col] = pd.to_datetime(df[time_col], errors='coerce', utc=True)
+        # (Tùy chọn) Chuyển múi giờ về giờ Việt Nam (+7) nếu muốn
+        try:
+            df[time_col] = df[time_col].dt.tz_convert('Asia/Ho_Chi_Minh')
+        except:
+            pass # Nếu không có múi giờ thì bỏ qua
+            
         df.dropna(subset=[time_col], inplace=True)
         
     # Xử lý STT
     if stt_col:
         df[stt_col] = df[stt_col].astype(str).str.replace(r'\.0$', '', regex=True)
         
-    # Ép toàn bộ các cột còn lại sang DẠNG SỐ (FLOAT)
-    # errors='coerce' giúp biến mọi rác/chữ lạ thành trống (NaN), triệt tiêu hoàn toàn lỗi hệ thống
+    # Ép kiểu dữ liệu số
     for col in df.columns:
         if col != time_col and col != stt_col:
             df[col] = pd.to_numeric(df[col], errors='coerce')
             
-    # Xóa các cột rỗng (nếu cột đó toàn là chữ rác bị biến thành NaN)
+    # Xóa các cột rỗng
     df.dropna(axis=1, how='all', inplace=True)
     
     return df, time_col, stt_col
@@ -101,7 +102,6 @@ if uploaded_file is not None:
         if time_col and not df_filtered.empty:
             st.subheader("📈 Biểu đồ thông số")
             
-            # Lấy các cột là số để vẽ biểu đồ
             numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
             if time_col in numeric_cols: numeric_cols.remove(time_col)
             if stt_col in numeric_cols: numeric_cols.remove(stt_col)
