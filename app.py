@@ -169,16 +169,21 @@ if uploaded_file is not None:
 
         if time_col and not df_filtered.empty:
             st.subheader(f"📈 Biểu đồ thông số")
+            
+            # --- FIX: SẮP XẾP DỮ LIỆU THEO THỜI GIAN TRƯỚC KHI VẼ ---
+            df_filtered = df_filtered.sort_values(by=time_col, ascending=True)
+            
             numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
             if stt_col in numeric_cols: numeric_cols.remove(stt_col)
             
             selected_metrics = st.multiselect("Chọn thông số:", numeric_cols, default=numeric_cols[:2] if len(numeric_cols) > 1 else numeric_cols)
 
             if selected_metrics:
-                # Biểu đồ cũng tự đổi theme theo biến plotly_template
+                # Vẽ biểu đồ
                 fig = px.line(df_filtered, x=time_col, y=selected_metrics, template=plotly_template, markers=True)
                 fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig, use_container_width=True)
+                
                 with st.expander("Xem bảng dữ liệu"):
                     st.dataframe(df_filtered, use_container_width=True)
             else:
