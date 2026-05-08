@@ -82,31 +82,37 @@ def flatten_json(y):
 def load_and_process_data(file_bytes):
     raw_data = json.loads(file_bytes)
     if isinstance(raw_data, dict): raw_data = [raw_data]
-    clean_json = normalize_keys(raw_data)
     
+    # === FIX LỖI: XÓA BỎ CỘT _id NGAY TỪ ĐẦU ===
+    for item in raw_data:
+        # Tìm và xóa tất cả các key có chứa chữ '_id' (không phân biệt hoa thường)
+        keys_to_delete = [k for k in item.keys() if '_id' in str(k).lower()]
+        for k in keys_to_delete:
+            del item[k]
+    # ==========================================
+
+    clean_json = normalize_keys(raw_data)
     flat_list = [flatten_json(item) for item in clean_json]
     df = pd.DataFrame(flat_list)
     
     time_col = None
     
-    # 1. Tìm và parse cột thời gian cực chuẩn
+    # Tìm và parse cột thời gian cực chuẩn
     for col in df.columns:
-        # unicodedata giúp giải quyết triệt để lỗi gõ tiếng việt khác bộ gõ
         col_norm = unicodedata.normalize('NFKC', str(col)).lower()
         if 'thời gian' in col_norm or 'time' in col_norm or 'tg' in col_norm:
             time_col = col 
-            # Đọc đúng format YYYY-MM-DD HH-MM-SS của bạn
+            # Đọc đúng format YYYY-MM-DD HH-MM-SS
             parsed_time = pd.to_datetime(df[col], format='%Y-%m-%d %H-%M-%S', errors='coerce')
-            # Fill các ô lỗi (nếu có) bằng hàm tự động đoán của Pandas
             df[col] = parsed_time.fillna(pd.to_datetime(df[col], errors='coerce'))
             break
             
-    # 2. Chuyển các cột còn lại sang dạng số
+    # Chuyển các cột còn lại sang dạng số
     for col in df.columns:
-        if col != time_col and '_id' not in col: 
+        if col != time_col: 
             df[col] = pd.to_numeric(df[col], errors='ignore')
             
-    # 3. CHỐNG LỖI ARROW: Ép các cột chứa cả chữ và số (Object) về dạng chuỗi chuẩn
+    # Ép các cột chứa cả chữ và số về dạng chuỗi chuẩn để chống lỗi Arrow
     for col in df.columns:
         if df[col].dtype == 'object' and col != time_col:
             df[col] = df[col].astype(str)
