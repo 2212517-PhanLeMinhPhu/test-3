@@ -73,7 +73,7 @@ def load_and_process_data(file_bytes):
     flat_list = [flatten_json(item) for item in clean_json]
     df = pd.DataFrame(flat_list)
     
-    # Chuẩn hóa tên cột và LOẠI BỎ CỘT TRÙNG LẶP (Fix lỗi 'Nhiệt độ' 2 times)
+    # Chuẩn hóa tên cột và LOẠI BỎ CỘT TRÙNG LẶP
     df.columns = df.columns.str.strip().str.capitalize()
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
     
@@ -81,14 +81,12 @@ def load_and_process_data(file_bytes):
     for col in df.columns:
         if 'thời gian' in col.lower() or 'time' in col.lower():
             time_col = col 
-            # Dùng utc=True để fix lỗi Mixed Timezones
             df[col] = pd.to_datetime(df[col].astype(str).str.replace('-', ':').str.replace(' ', 'T'), errors='coerce', utc=True)
             df[col] = df[col].dt.tz_localize(None) 
             break
             
     for col in df.columns:
         if col != time_col: 
-            # Dùng errors='coerce' thay vì 'ignore' để fix lỗi invalid error value
             df[col] = pd.to_numeric(df[col], errors='coerce')
             
     return df, time_col
@@ -114,13 +112,13 @@ if uploaded_file is not None:
         if time_col and not df_filtered.empty:
             st.subheader("📈 Biểu đồ thông số")
             
-            # Sắp xếp thời gian để biểu đồ không bị rối (Fix mạng nhện)
+            # Sắp xếp thời gian để biểu đồ không bị rối 
             df_filtered = df_filtered.sort_values(by=time_col, ascending=True)
             
             numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
             if stt_col in numeric_cols: numeric_cols.remove(stt_col)
             
-            # Chỉ mặc định 1 thông số đầu tiên để không bị lệch thang đo (Fix lỗi biểu đồ loạn)
+            # Mặc định chọn 1 thông số đầu tiên
             selected_metrics = st.multiselect(
                 "Chọn thông số:", 
                 numeric_cols, 
@@ -136,9 +134,8 @@ if uploaded_file is not None:
                     template=plotly_template
                 )
                 
-                # Bo cong mềm mại đường biểu đồ
+                # Cập nhật giao diện biểu đồ (ĐÃ XÓA line_shape='spline')
                 fig.update_traces(
-                    line_shape='spline',
                     line=dict(width=2.5)
                 )
                 
