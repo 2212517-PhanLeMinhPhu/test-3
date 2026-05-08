@@ -81,13 +81,18 @@ def load_and_process_data(file_bytes):
     for col in df.columns:
         if 'thời gian' in col.lower() or 'time' in col.lower():
             time_col = col 
-            df[col] = pd.to_datetime(df[col].astype(str).str.replace('-', ':').str.replace(' ', 'T'), errors='coerce', utc=True)
+            # Đã sửa lỗi NaT: Để Pandas tự nhận diện chuẩn định dạng thời gian
+            df[col] = pd.to_datetime(df[col], errors='coerce', utc=True)
             df[col] = df[col].dt.tz_localize(None) 
             break
             
     for col in df.columns:
         if col != time_col: 
+            # Ép về dạng số, các chuỗi không hợp lệ sẽ thành NaN
             df[col] = pd.to_numeric(df[col], errors='coerce')
+    
+    # Tự động loại bỏ các cột trống hoàn toàn (ví dụ ID chuỗi bị biến thành NaN)
+    df = df.dropna(axis=1, how='all')
             
     return df, time_col
 
@@ -113,53 +118,56 @@ if uploaded_file is not None:
             st.subheader("📈 Biểu đồ thông số")
             
             # Sắp xếp thời gian để biểu đồ không bị rối 
-            df_filtered = df_filtered.sort_values(by=time_col, ascending=True)
+            # Bỏ qua các hàng có giá trị thời gian bị lỗi (NaT) nếu có
+            df_filtered = df_filtered.dropna(subset=[time_col]).sort_values(by=time_col, ascending=True)
             
             numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
             if stt_col in numeric_cols: numeric_cols.remove(stt_col)
             
-            # Mặc định chọn 1 thông số đầu tiên
-            selected_metrics = st.multiselect(
-                "Chọn thông số:", 
-                numeric_cols, 
-                default=[numeric_cols[0]] if numeric_cols else None
-            )
-
-            if selected_metrics:
-                # Vẽ biểu đồ với Plotly
-                fig = px.line(
-                    df_filtered, 
-                    x=time_col, 
-                    y=selected_metrics, 
-                    template=plotly_template
-                )
-                
-                # Cập nhật giao diện biểu đồ (ĐÃ XÓA line_shape='spline')
-                fig.update_traces(
-                    line=dict(width=2.5)
-                )
-                
-                fig.update_layout(
-                    hovermode='x unified',
-                    paper_bgcolor='rgba(0,0,0,0)', 
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    xaxis_title="Thời gian",
-                    yaxis_title="Giá trị",
-                    legend=dict(
-                        title="", 
-                        orientation="h", 
-                        yanchor="bottom", 
-                        y=1.05, 
-                        xanchor="right", 
-                        x=1
-                    )
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-                with st.expander("Xem bảng dữ liệu"):
-                    st.dataframe(df_filtered, use_container_width=True)
+            if not numeric_cols:
+                st.warning("Không tìm thấy dữ liệu dạng số nào có thể vẽ biểu đồ.")
             else:
-                st.warning("Vui lòng chọn ít nhất một thông số.")
+                # Mặc định chọn 1 thông số đầu tiên
+                selected_metrics = st.multiselect(
+                    "Chọn thông số:", 
+                    numeric_cols, 
+                    default=[numeric_cols[0]] if numeric_cols else None
+                )
+
+                if selected_metrics:
+                    # Vẽ biểu đồ với Plotly
+                    fig = px.line(
+                        df_filtered, 
+                        x=time_col, 
+                        y=selected_metrics, 
+                        template=plotly_template
+                    )
+                    
+                    fig.update_traces(
+                        line=dict(width=2.5)
+                    )
+                    
+                    fig.update_layout(
+                        hovermode='x unified',
+                        paper_bgcolor='rgba(0,0,0,0)', 
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        xaxis_title="Thời gian",
+                        yaxis_title="Giá trị",
+                        legend=dict(
+                            title="", 
+                            orientation="h", 
+                            yanchor="bottom", 
+                            y=1.05, 
+                            xanchor="right", 
+                            x=1
+                        )
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    with st.expander("Xem bảng dữ liệu"):
+                        st.dataframe(df_filtered, use_container_width=True)
+                else:
+                    st.warning("Vui lòng chọn ít nhất một thông số.")
         else:
             st.error("Không tìm thấy cột thời gian hợp lệ hoặc dữ liệu trống.")
     except Exception as e:
