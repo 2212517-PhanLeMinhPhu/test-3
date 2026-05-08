@@ -7,100 +7,32 @@ import plotly.express as px
 # --- 0. CẤU HÌNH GIAO DIỆN & CHẾ ĐỘ SÁNG/TỐI ---
 st.set_page_config(page_title="JSON Data Pro - Theme Toggle", layout="wide")
 
-# Tạo nút chuyển đổi ở Sidebar
+# Tạo nút chuyển đổi ở Sidebar [cite: 1]
 with st.sidebar:
     st.header("🎨 Giao diện")
     dark_mode = st.toggle("Chế độ Tối (Dark Mode)", value=True)
 
-# Thiết lập màu sắc dựa trên chế độ được chọn
+# Thiết lập màu sắc dựa trên chế độ [cite: 2]
 if dark_mode:
-    # --- TONE MÀU TỐI ---
-    bg_color = "#0E1117"
-    text_color = "#FAFAFA"
-    sidebar_bg = "#161b22"
-    upload_label_color = "#ffffff"
-    dropzone_bg = "#161b22"
-    dropzone_text = "#ffffff"
+    bg_color, text_color, sidebar_bg = "#0E1117", "#FAFAFA", "#161b22"
+    upload_label_color, dropzone_bg, dropzone_text = "#ffffff", "#161b22", "#ffffff"
     plotly_template = "plotly_dark"
 else:
-    # --- TONE MÀU SÁNG ---
-    bg_color = "#FFFFFF"
-    text_color = "#31333F"
-    sidebar_bg = "#F0F2F6"
-    upload_label_color = "#31333F"
-    dropzone_bg = "#f9f9f9"
-    dropzone_text = "#31333F"
+    bg_color, text_color, sidebar_bg = "#FFFFFF", "#31333F", "#F0F2F6"
+    upload_label_color, dropzone_bg, dropzone_text = "#31333F", "#f9f9f9", "#31333F"
     plotly_template = "plotly"
 
-# Inject CSS tùy biến theo Theme
+# Inject CSS [cite: 3, 4, 5, 8]
 st.markdown(f"""
     <style>
-    /* Nền chính của app */
-    .stApp {{
-        background-color: {bg_color};
-        color: {text_color};
-    }}
-    /* Tùy chỉnh Sidebar */
-    [data-testid="stSidebar"] {{
-        background-color: {sidebar_bg};
-        border-right: 1px solid #30363d;
-    }}
-    
-    /* --- CẤU HÌNH KHUNG UPLOAD --- */
-    
-    /* 1. Nhãn Tiêu đề bên ngoài */
-    [data-testid="stFileUploader"] label {{
-        display: flex !important;
-        width: 100% !important;
-        justify-content: center !important;
-        margin-bottom: 5px !important;
-    }}
-    
-    [data-testid="stFileUploader"] label p {{
-        color: {upload_label_color} !important; 
-        font-weight: bold !important;
-        font-size: 1.1rem !important;
-        text-align: center !important;
-        margin: 0 !important;
-    }}
-
-    /* 2. Khung kéo thả (Dropzone) - Viền Cyan, Căn giữa */
+    .stApp {{ background-color: {bg_color}; color: {text_color}; }}
+    [data-testid="stSidebar"] {{ background-color: {sidebar_bg}; border-right: 1px solid #30363d; }}
+    [data-testid="stFileUploader"] label p {{ color: {upload_label_color} !important; font-weight: bold; }}
     [data-testid="stFileUploaderDropzone"] {{
-        background-color: {dropzone_bg} !important;  
-        border: 3px dashed #00d4ff !important; 
+        background-color: {dropzone_bg} !important;
+        border: 3px dashed #00d4ff !important;
         border-radius: 12px;
-        padding: 30px 20px;
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;     
-        justify-content: center !important;  
-        text-align: center !important;
     }}
-
-    /* 3. Chữ bên trong khung - Căn giữa */
-    [data-testid="stFileUploaderDropzone"] div, 
-    [data-testid="stFileUploaderDropzone"] span, 
-    [data-testid="stFileUploaderDropzone"] small {{
-        color: {dropzone_text} !important;    
-        font-weight: bold !important; 
-        text-align: center !important;
-        width: 100%;
-        display: block;
-    }}
-    
-    /* 4. Nút bấm Browse files */
-    [data-testid="stFileUploaderDropzone"] button {{
-        background-color: #00d4ff !important; 
-        color: #000000 !important;            
-        font-weight: bold !important;         
-        border: none !important; 
-        border-radius: 8px;
-        padding: 8px 20px;
-        margin-top: 15px !important;
-        display: inline-block;
-    }}
-
-    /* Màu tiêu đề h1, h2, h3 */
     h1, h2, h3 {{ color: {text_color} !important; }}
     </style>
     """, unsafe_allow_html=True)
@@ -135,17 +67,23 @@ def load_and_process_data(file_bytes):
     df = pd.DataFrame(flat_list)
     
     time_col = None
+    # Tìm cột thời gian 
     for col in df.columns:
-        if 'thời gian' in col.lower() or 'time' in col.lower():
+        if any(keyword in col.lower() for keyword in ['thời gian', 'time', 'timestamp']):
             time_col = col 
-            df[col] = pd.to_datetime(df[col].astype(str).str.replace('-', ':').str.replace(' ', 'T'), errors='coerce')
+            # SỬA LỖI TẠI ĐÂY: Chuyển đổi datetime an toàn 
+            df[col] = pd.to_datetime(df[col].astype(str), errors='coerce')
             break
             
+    # Chuyển đổi các cột số 
     for col in df.columns:
-        if col != time_col: df[col] = pd.to_numeric(df[col], errors='ignore')
+        if col != time_col: 
+            # Dùng 'coerce' để tránh lỗi "invalid error value" 
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+            
     return df, time_col
 
-# --- 2. GIAO DIỆN UPLOAD (SIDEBAR) ---
+# --- 2. GIAO DIỆN UPLOAD ---
 with st.sidebar:
     st.markdown("---")
     uploaded_file = st.file_uploader("TẢI LÊN FILE JSON QUAN TRẮC", type=['json'])
@@ -154,31 +92,38 @@ with st.sidebar:
 if uploaded_file is not None:
     try:
         df, time_col = load_and_process_data(uploaded_file.getvalue())
-        stt_col = next((c for c in df.columns if 'stt' in c.lower()), None)
         
+        # Lọc theo STT [cite: 18]
+        stt_col = next((c for c in df.columns if 'stt' in c.lower()), None)
         if stt_col:
             stt_list = sorted(df[stt_col].dropna().unique().astype(str))
             selected_stt = st.sidebar.selectbox("Chọn Mã thiết bị (STT):", stt_list)
-            df_filtered = df[df[stt_col].astype(str) == selected_stt]
+            df_filtered = df[df[stt_col].astype(str) == selected_stt].copy()
         else:
-            df_filtered = df
+            df_filtered = df.copy()
 
         if time_col and not df_filtered.empty:
-            st.subheader(f"📈 Biểu đồ thông số")
+            st.subheader("📈 Biểu đồ thông số")
+            # Chỉ lấy các cột có dữ liệu số [cite: 19]
             numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
             if stt_col in numeric_cols: numeric_cols.remove(stt_col)
             
-            selected_metrics = st.multiselect("Chọn thông số:", numeric_cols, default=numeric_cols[:2] if len(numeric_cols) > 1 else numeric_cols)
+            selected_metrics = st.multiselect("Chọn thông số:", numeric_cols, 
+                                             default=numeric_cols[:2] if len(numeric_cols) > 1 else numeric_cols)
 
             if selected_metrics:
-                # Biểu đồ cũng tự đổi theme theo biến plotly_template
-                fig = px.line(df_filtered, x=time_col, y=selected_metrics, template=plotly_template, markers=True)
+                # Vẽ biểu đồ [cite: 20]
+                fig = px.line(df_filtered, x=time_col, y=selected_metrics, 
+                             template=plotly_template, markers=True)
                 fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig, use_container_width=True)
+                
                 with st.expander("Xem bảng dữ liệu"):
                     st.dataframe(df_filtered, use_container_width=True)
             else:
                 st.warning("Vui lòng chọn ít nhất một thông số.")
+        else:
+            st.error("Không tìm thấy cột thời gian hợp lệ hoặc dữ liệu trống.")
     except Exception as e:
         st.error(f"Lỗi: {e}")
 else:
