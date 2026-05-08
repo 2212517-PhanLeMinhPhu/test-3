@@ -32,61 +32,55 @@ st.markdown(f"""
 
 st.title("📊 Công cụ Phân tích Dữ liệu Quan trắc")
 
-# --- 1. XỬ LÝ DỮ LIỆU CỐT LÕI ---
+# --- 1. XỬ LÝ DỮ LIỆU CỐT LÕI (CHỐNG LỖI 100%) ---
 @st.cache_data
-def flatten_json(y):
-    out = {}
-    def flatten(x, name=''):
-        if isinstance(x, dict):
-            for a in x: flatten(x[a], name + a + '.')
-        elif isinstance(x, list):
-            for i, a in enumerate(x): flatten(a, name + str(i) + '.')
-        else: out[name[:-1]] = x
-    flatten(y)
-    return out
-
-@st.cache_data
-def load_and_process_data(file_bytes):
+def parse_json_data(file_bytes):
+    # Đọc JSON và dùng thư viện chuẩn để trải phẳng (chống lỗi _id và lồng nhau)
     raw_data = json.loads(file_bytes)
-    if isinstance(raw_data, dict): raw_data = [raw_data]
+    df = pd.json_normalize(raw_data)
     
-    # 1. Xóa triệt để _id
-    for item in raw_data:
-        keys_to_delete = [k for k in item.keys() if '_id' in str(k).lower()]
-        for k in keys_to_delete:
-            del item[k]
-
-    # 2. Làm phẳng JSON và tạo DataFrame siêu tốc
-    flat_list = [flatten_json(item) for item in raw_data]
-    df = pd.DataFrame(flat_list)
-    
-    # === FIX LỖI KEYERROR: ÉP CHUẨN TÊN CỘT ===
-    # Đưa tất cả tên cột về: CHỮ THƯỜNG + XÓA DẤU CÁCH THỪA + CHUẨN HÓA UNICODE
+    # Chuẩn hóa 100% tên cột: Chữ thường, xóa khoảng trắng, Unicode chuẩn
     df.columns = [unicodedata.normalize('NFC', str(c)).strip().lower() for c in df.columns]
     
-    time_col = None
+    # Bỏ các cột hệ thống (như _id.$oid)
+    cols_to_drop = [c for c in df.columns if '_id' in c]
+    df.drop(columns=cols_to_drop, inplace=True, errors='ignore')
     
-    # 3. Tìm và xử lý cột thời gian an toàn
+    time_col = None
+    stt_col = None
+    
+    # Xác định cột quan trọng
     for col in df.columns:
         if 'thời gian' in col or 'time' in col or 'tg' in col:
-            time_col = col 
-            parsed_time = pd.to_datetime(df[col], format='%Y-%m-%d %H-%M-%S', errors='coerce')
-            df[col] = parsed_time.fillna(pd.to_datetime(df[col], errors='coerce'))
-            break
+            time_col = col
+        elif 'stt' in col:
+            stt_col = col
             
-    # 4. Chuyển các cột còn lại sang dạng số
+    # Xử lý thời gian
+    if time_col:
+        # Ép chuẩn ngày giờ, ưu tiên format có gạch ngang trước
+        df[time_col] = pd.to_datetime(df[time_col], format='%Y-%m-%d %H-%M-%S', errors='coerce').fillna(
+            pd.to_datetime(df[time_col], errors='coerce')
+        )
+        # Bỏ các dòng bị lỗi không có thời gian
+        df.dropna(subset=[time_col], inplace=True)
+        
+    # Xử lý STT
+    if stt_col:
+        df[stt_col] = df[stt_col].astype(str).str.replace(r'\.0$', '', regex=True)
+        
+    # Ép toàn bộ các cột còn lại sang DẠNG SỐ (FLOAT)
+    # errors='coerce' giúp biến mọi rác/chữ lạ thành trống (NaN), triệt tiêu hoàn toàn lỗi hệ thống
     for col in df.columns:
-        if col != time_col: 
-            df[col] = pd.to_numeric(df[col], errors='ignore')
+        if col != time_col and col != stt_col:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
             
-    # 5. Ép kiểu chuỗi để chống lỗi Arrow (Mixed types)
-    for col in df.columns:
-        if df[col].dtype == 'object' and col != time_col:
-            df[col] = df[col].astype(str)
-            
-    return df, time_col
+    # Xóa các cột rỗng (nếu cột đó toàn là chữ rác bị biến thành NaN)
+    df.dropna(axis=1, how='all', inplace=True)
+    
+    return df, time_col, stt_col
 
-# --- 2. GIAO DIỆN UPLOAD (SIDEBAR) ---
+# --- 2. GIAO DIỆN UPLOAD ---
 with st.sidebar:
     st.markdown("---")
     uploaded_file = st.file_uploader("TẢI LÊN FILE JSON QUAN TRẮC", type=['json'])
@@ -95,31 +89,28 @@ with st.sidebar:
 if uploaded_file is not None:
     try:
         with st.spinner("Đang phân tích dữ liệu... Vui lòng đợi nhé!"):
-            df, time_col = load_and_process_data(uploaded_file.getvalue())
+            df, time_col, stt_col = parse_json_data(uploaded_file.getvalue())
             
-        stt_col = next((c for c in df.columns if 'stt' in c), None)
-        
-        if stt_col:
-            stt_list = sorted(df[stt_col].dropna().unique().astype(str))
+        if stt_col and not df[stt_col].empty:
+            stt_list = sorted(df[stt_col].dropna().unique().tolist())
             selected_stt = st.sidebar.selectbox("Chọn Mã thiết bị (STT):", stt_list)
-            df_filtered = df[df[stt_col].astype(str) == selected_stt]
+            df_filtered = df[df[stt_col] == selected_stt]
         else:
             df_filtered = df
 
         if time_col and not df_filtered.empty:
-            st.subheader(f"📈 Biểu đồ thông số")
+            st.subheader("📈 Biểu đồ thông số")
             
+            # Lấy các cột là số để vẽ biểu đồ
             numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
-            if stt_col in numeric_cols: numeric_cols.remove(stt_col)
-            # Chắc chắn cột thời gian không bị nhét vào trục Y gây lỗi
             if time_col in numeric_cols: numeric_cols.remove(time_col)
+            if stt_col in numeric_cols: numeric_cols.remove(stt_col)
             
             selected_metrics = st.multiselect("Chọn thông số:", numeric_cols, default=numeric_cols[:2] if len(numeric_cols) > 1 else numeric_cols)
 
             if selected_metrics:
                 fig = px.line(df_filtered, x=time_col, y=selected_metrics, template=plotly_template, markers=True)
                 
-                # Tùy chỉnh biểu đồ đẹp mắt và thêm đường gióng (Spikelines)
                 fig.update_layout(
                     paper_bgcolor='rgba(0,0,0,0)', 
                     plot_bgcolor='rgba(0,0,0,0)',
@@ -136,8 +127,9 @@ if uploaded_file is not None:
             else:
                 st.warning("Vui lòng chọn ít nhất một thông số.")
         else:
-            st.error("Không tìm thấy dữ liệu thời gian hợp lệ hoặc dữ liệu đang trống.")
+            st.error("Không tìm thấy dữ liệu thời gian hợp lệ hoặc file đang trống.")
     except Exception as e:
-        st.error(f"Đã có lỗi xảy ra trong quá trình đọc file: {e}")
+        st.error(f"Đã xảy ra sự cố ngoài ý muốn: {e}")
+        st.info("Vui lòng chụp màn hình nếu dòng màu đỏ này vẫn xuất hiện!")
 else:
     st.info("👈 Hãy tải file JSON ở thanh bên trái để bắt đầu!")
