@@ -176,21 +176,40 @@ if uploaded_file is not None:
             numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
             if stt_col in numeric_cols: numeric_cols.remove(stt_col)
             
-            selected_metrics = st.multiselect("Chọn thông số:", numeric_cols, default=numeric_cols[:2] if len(numeric_cols) > 1 else numeric_cols)
+            selected_metrics = st.multiselect(
+                "Chọn thông số:", 
+                numeric_cols, 
+                default=[numeric_cols[0]] if numeric_cols else None
+            )
 
             if selected_metrics:
-                # Vẽ biểu đồ
-                fig = px.line(df_filtered, x=time_col, y=selected_metrics, template=plotly_template, markers=True)
-                fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                # Bỏ markers=True để biểu đồ không bị rối bởi hàng ngàn dấu chấm
+                fig = px.line(df_filtered, x=time_col, y=selected_metrics, template=plotly_template)
+                
+                # NÂNG CẤP ĐỘ ĐẸP CHO BIỂU ĐỒ
+                fig.update_traces(
+                    line_shape='spline', # Làm mượt đường vẽ (tạo đường cong mềm thay vì gãy khúc)
+                    line=dict(width=2.5) # Tăng độ dày đường vẽ lên một chút cho nét
+                )
+                
+                fig.update_layout(
+                    hovermode='x unified', # Tooltip xịn: Di chuột đến đâu, hiện bảng thông số gộp đến đó
+                    paper_bgcolor='rgba(0,0,0,0)', 
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    xaxis_title="Thời gian",
+                    yaxis_title="Giá trị",
+                    legend=dict(
+                        title="", # Ẩn chữ "variable" thừa thãi
+                        orientation="h", # Chuyển chú thích (legend) nằm ngang...
+                        yanchor="bottom", 
+                        y=1.05, # ...và đẩy lên góc trên cùng cho rộng không gian vẽ
+                        xanchor="right",
+                        x=1
+                    )
+                )
                 st.plotly_chart(fig, use_container_width=True)
                 
                 with st.expander("Xem bảng dữ liệu"):
                     st.dataframe(df_filtered, use_container_width=True)
             else:
                 st.warning("Vui lòng chọn ít nhất một thông số.")
-        else:
-            st.error("Không tìm thấy cột thời gian hợp lệ hoặc dữ liệu trống.")
-    except Exception as e:
-        st.error(f"Lỗi: {e}")
-else:
-    st.info("👈 Hãy tải file JSON ở thanh bên trái để bắt đầu!")
