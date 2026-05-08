@@ -47,8 +47,6 @@ st.markdown(f"""
     }}
     
     /* --- CẤU HÌNH KHUNG UPLOAD --- */
-    
-    /* 1. Nhãn Tiêu đề bên ngoài */
     [data-testid="stFileUploader"] label {{
         display: flex !important;
         width: 100% !important;
@@ -64,7 +62,6 @@ st.markdown(f"""
         margin: 0 !important;
     }}
 
-    /* 2. Khung kéo thả (Dropzone) - Viền Cyan, Căn giữa */
     [data-testid="stFileUploaderDropzone"] {{
         background-color: {dropzone_bg} !important;
         border: 3px dashed #00d4ff !important; 
@@ -76,140 +73,3 @@ st.markdown(f"""
         justify-content: center !important;  
         text-align: center !important;
     }}
-
-    /* 3. Chữ bên trong khung - Căn giữa */
-    [data-testid="stFileUploaderDropzone"] div, 
-    [data-testid="stFileUploaderDropzone"] span, 
-    [data-testid="stFileUploaderDropzone"] small {{
-        color: {dropzone_text} !important;
-        font-weight: bold !important; 
-        text-align: center !important;
-        width: 100%;
-        display: block;
-    }}
-    
-    /* 4. Nút bấm Browse files */
-    [data-testid="stFileUploaderDropzone"] button {{
-        background-color: #00d4ff !important;
-        color: #000000 !important;            
-        font-weight: bold !important;         
-        border: none !important; 
-        border-radius: 8px;
-        padding: 8px 20px;
-        margin-top: 15px !important;
-        display: inline-block;
-    }}
-
-    /* Màu tiêu đề h1, h2, h3 */
-    h1, h2, h3 {{ color: {text_color} !important; }}
-    </style>
-    """, unsafe_allow_html=True)
-
-st.title("📊 Công cụ Phân tích Dữ liệu Quan trắc")
-
-# --- 1. CÁC HÀM XỬ LÝ DỮ LIỆU ---
-@st.cache_data
-def normalize_keys(data):
-    if isinstance(data, list): return [normalize_keys(item) for item in data]
-    elif isinstance(data, dict): return {str(k).strip(): normalize_keys(v) for k, v in data.items()}
-    return data
-
-@st.cache_data
-def flatten_json(y):
-    out = {}
-    def flatten(x, name=''):
-        if isinstance(x, dict):
-            for a in x: flatten(x[a], name + a + '.')
-        elif isinstance(x, list):
-            for i, a in enumerate(x): flatten(a, name + str(i) + '.')
-        else: out[name[:-1]] = x
-    flatten(y)
-    return out
-
-@st.cache_data
-def load_and_process_data(file_bytes):
-    raw_data = json.loads(file_bytes)
-    if isinstance(raw_data, dict): raw_data = [raw_data]
-    clean_json = normalize_keys(raw_data)
-    flat_list = [flatten_json(item) for item in clean_json]
-    df = pd.DataFrame(flat_list)
-    
-    time_col = None
-    for col in df.columns:
-        if 'thời gian' in col.lower() or 'time' in col.lower():
-            time_col = col 
-            # Xử lý thời gian với utc=True và errors='coerce' để tránh mọi lỗi
-            df[col] = pd.to_datetime(df[col].astype(str), errors='coerce', utc=True)
-            df[col] = df[col].dt.tz_localize(None) 
-            break
-            
-    for col in df.columns:
-        if col != time_col: 
-            # Xử lý số với errors='coerce' để an toàn
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-    return df, time_col
-
-# --- 2. GIAO DIỆN UPLOAD (SIDEBAR) ---
-with st.sidebar:
-    st.markdown("---")
-    uploaded_file = st.file_uploader("TẢI LÊN FILE JSON QUAN TRẮC", type=['json'])
-
-# --- 3. HIỂN THỊ DỮ LIỆU ---
-if uploaded_file is not None:
-    try:
-        df, time_col = load_and_process_data(uploaded_file.getvalue())
-        stt_col = next((c for c in df.columns if 'stt' in c.lower()), None)
-        
-        if stt_col:
-            stt_list = sorted(df[stt_col].dropna().unique().astype(str))
-            selected_stt = st.sidebar.selectbox("Chọn Mã thiết bị (STT):", stt_list)
-            df_filtered = df[df[stt_col].astype(str) == selected_stt].copy()
-        else:
-            df_filtered = df.copy()
-
-        if time_col and not df_filtered.empty:
-            st.subheader(f"📈 Biểu đồ thông số")
-            
-            # --- FIX: SẮP XẾP DỮ LIỆU THEO THỜI GIAN TRƯỚC KHI VẼ ---
-            df_filtered = df_filtered.sort_values(by=time_col, ascending=True)
-            
-            numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
-            if stt_col in numeric_cols: numeric_cols.remove(stt_col)
-            
-            selected_metrics = st.multiselect(
-                "Chọn thông số:", 
-                numeric_cols, 
-                default=[numeric_cols[0]] if numeric_cols else None
-            )
-
-            if selected_metrics:
-                # Bỏ markers=True để biểu đồ không bị rối bởi hàng ngàn dấu chấm
-                fig = px.line(df_filtered, x=time_col, y=selected_metrics, template=plotly_template)
-                
-                # NÂNG CẤP ĐỘ ĐẸP CHO BIỂU ĐỒ
-                fig.update_traces(
-                    line_shape='spline', # Làm mượt đường vẽ (tạo đường cong mềm thay vì gãy khúc)
-                    line=dict(width=2.5) # Tăng độ dày đường vẽ lên một chút cho nét
-                )
-                
-                fig.update_layout(
-                    hovermode='x unified', # Tooltip xịn: Di chuột đến đâu, hiện bảng thông số gộp đến đó
-                    paper_bgcolor='rgba(0,0,0,0)', 
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    xaxis_title="Thời gian",
-                    yaxis_title="Giá trị",
-                    legend=dict(
-                        title="", # Ẩn chữ "variable" thừa thãi
-                        orientation="h", # Chuyển chú thích (legend) nằm ngang...
-                        yanchor="bottom", 
-                        y=1.05, # ...và đẩy lên góc trên cùng cho rộng không gian vẽ
-                        xanchor="right",
-                        x=1
-                    )
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-                with st.expander("Xem bảng dữ liệu"):
-                    st.dataframe(df_filtered, use_container_width=True)
-            else:
-                st.warning("Vui lòng chọn ít nhất một thông số.")
