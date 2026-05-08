@@ -41,13 +41,14 @@ st.title("📊 Công cụ Phân tích Dữ liệu Quan trắc") [cite: 14]
 
 # --- 1. CÁC HÀM XỬ LÝ DỮ LIỆU ---
 @st.cache_data
-def normalize_keys(data): [cite: 15]
+@st.cache_data
+def normalize_keys(data):
     if isinstance(data, list): return [normalize_keys(item) for item in data]
     elif isinstance(data, dict): return {str(k).strip(): normalize_keys(v) for k, v in data.items()}
     return data
 
 @st.cache_data
-def flatten_json(y): [cite: 15]
+def flatten_json(y):
     out = {}
     def flatten(x, name=''):
         if isinstance(x, dict):
