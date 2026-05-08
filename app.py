@@ -67,20 +67,22 @@ def load_and_process_data(file_bytes):
     df = pd.DataFrame(flat_list)
     
     time_col = None
-    # Tìm cột thời gian 
     for col in df.columns:
-        if any(keyword in col.lower() for keyword in ['thời gian', 'time', 'timestamp']):
+        if 'thời gian' in col.lower() or 'time' in col.lower():
             time_col = col 
-            # SỬA LỖI TẠI ĐÂY: Chuyển đổi datetime an toàn 
-            df[col] = pd.to_datetime(df[col].astype(str), errors='coerce')
+            # SỬA LỖI TẠI ĐÂY: Thêm utc=True để đồng nhất múi giờ
+            df[col] = pd.to_datetime(
+                df[col].astype(str).str.replace('-', ':').str.replace(' ', 'T'), 
+                errors='coerce', 
+                utc=True
+            )
+            # Sau khi chuyển về UTC, bạn có thể loại bỏ múi giờ để hiển thị đơn giản hơn
+            df[col] = df[col].dt.tz_localize(None) 
             break
             
-    # Chuyển đổi các cột số 
     for col in df.columns:
         if col != time_col: 
-            # Dùng 'coerce' để tránh lỗi "invalid error value" 
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-            
+            df[col] = pd.to_numeric(df[col], errors='ignore') [cite: 17]
     return df, time_col
 
 # --- 2. GIAO DIỆN UPLOAD ---
