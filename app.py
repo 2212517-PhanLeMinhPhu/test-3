@@ -8,9 +8,9 @@ import plotly.express as px
 st.set_page_config(page_title="JSON Data Pro - Theme Toggle", layout="wide") [cite: 1]
 
 # Tạo nút chuyển đổi ở Sidebar
-with st.sidebar: [cite: 1]
-    st.header("🎨 Giao diện") [cite: 1]
-    dark_mode = st.toggle("Chế độ Tối (Dark Mode)", value=True) [cite: 1]
+with st.sidebar: 
+    st.header("🎨 Giao diện") 
+    dark_mode = st.toggle("Chế độ Tối (Dark Mode)", value=True)
 
 # Thiết lập màu sắc dựa trên chế độ được chọn [cite: 2]
 if dark_mode:
