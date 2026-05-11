@@ -4,15 +4,13 @@ import numpy as np
 import json
 import plotly.express as px
 
-# --- 0. CẤU HÌNH GIAO DIỆN & CHẾ ĐỘ SÁNG/TỐI ---
+# --- 0. CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(page_title="JSON Data Pro - Analytical", layout="wide", page_icon="📊")
 
-# Tạo nút chuyển đổi ở Sidebar
 with st.sidebar:
     st.header("🎨 Giao diện")
     dark_mode = st.toggle("Chế độ Tối (Dark Mode)", value=True)
 
-# Thiết lập màu sắc dựa trên chế độ được chọn
 if dark_mode:
     bg_color, text_color, sidebar_bg = "#0E1117", "#FAFAFA", "#161b22"
     accent_color = "#00d4ff"
@@ -22,14 +20,12 @@ else:
     accent_color = "#007BFF"
     plotly_template = "plotly"
 
-# Inject CSS tùy biến
 st.markdown(f"""
     <style>
     .stApp {{ background-color: {bg_color}; color: {text_color}; }}
     [data-testid="stSidebar"] {{ background-color: {sidebar_bg}; border-right: 1px solid #30363d; }}
     [data-testid="stFileUploaderDropzone"] {{ border: 2px dashed {accent_color} !important; border-radius: 12px; }}
     h1, h2, h3 {{ color: {text_color} !important; }}
-    .stMetric {{ background-color: {sidebar_bg}; padding: 10px; border-radius: 10px; border: 1px solid {accent_color}33; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -61,8 +57,6 @@ def load_and_process_data(file_bytes):
     clean_json = normalize_keys(raw_data)
     flat_list = [flatten_json(item) for item in clean_json]
     df = pd.DataFrame(flat_list)
-    
-    # Chuẩn hóa tên cột
     df.columns = df.columns.str.strip().str.capitalize()
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
     
@@ -70,7 +64,6 @@ def load_and_process_data(file_bytes):
     for col in df.columns:
         if any(k in col.lower() for k in ['thời gian', 'time']):
             time_col = col 
-            # FIX LỖI MIXED TIMEZONES: ép về UTC sau đó gỡ múi giờ (localize None)
             df[col] = pd.to_datetime(df[col], errors='coerce', utc=True).dt.tz_localize(None)
             break
             
@@ -78,11 +71,10 @@ def load_and_process_data(file_bytes):
         if col != time_col: 
             df[col] = pd.to_numeric(df[col], errors='coerce')
     
-    # Loại bỏ cột trống hoàn toàn
     df = df.dropna(axis=1, how='all')
     return df, time_col
 
-# --- 2. GIAO DIỆN UPLOAD (SIDEBAR) ---
+# --- 2. SIDEBAR UPLOAD ---
 with st.sidebar:
     st.markdown("---")
     uploaded_file = st.file_uploader("TẢI LÊN FILE JSON QUAN TRẮC", type=['json'])
@@ -92,11 +84,10 @@ if uploaded_file is not None:
     try:
         df, time_col = load_and_process_data(uploaded_file.getvalue())
         
-        # --- BỘ LỌC SIDEBAR ---
+        # BỘ LỌC SIDEBAR
         with st.sidebar:
             st.header("🔍 Bộ lọc dữ liệu")
             
-            # 1. Lọc theo STT (Mã thiết bị)
             stt_col = next((c for c in df.columns if 'stt' in c.lower()), None)
             if stt_col:
                 stt_list = sorted(df[stt_col].dropna().unique().astype(str))
@@ -105,6 +96,50 @@ if uploaded_file is not None:
             else:
                 df_filtered = df.copy()
 
-            # 2. Lọc theo Khoảng ngày (Ngày/Tháng/Năm)
             if time_col and not df_filtered.empty:
                 st.markdown("---")
+                temp_time = df_filtered[time_col].dropna()
+                if not temp_time.empty:
+                    min_date = temp_time.min().date()
+                    max_date = temp_time.max().date()
+                    
+                    date_range = st.date_input(
+                        "Chọn khoảng thời gian:",
+                        value=(min_date, max_date),
+                        min_value=min_date,
+                        max_value=max_date
+                    )
+                    
+                    if isinstance(date_range, tuple) and len(date_range) == 2:
+                        start_date, end_date = date_range
+                        mask = (df_filtered[time_col].dt.date >= start_date) & (df_filtered[time_col].dt.date <= end_date)
+                        df_filtered = df_filtered.loc[mask]
+
+        # HIỂN THỊ BIỂU ĐỒ
+        if time_col and not df_filtered.empty:
+            st.subheader("📈 Phân tích thông số")
+            df_filtered = df_filtered.dropna(subset=[time_col]).sort_values(by=time_col)
+            numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
+            if stt_col in numeric_cols: numeric_cols.remove(stt_col)
+            
+            if not numeric_cols:
+                st.warning("Không tìm thấy dữ liệu dạng số.")
+            else:
+                selected_metrics = st.multiselect("Chọn thông số:", numeric_cols, default=[numeric_cols[0]])
+                if selected_metrics:
+                    fig = px.line(df_filtered, x=time_col, y=selected_metrics, template=plotly_template, markers=True)
+                    fig.update_layout(hovermode='x unified', height=600)
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    with st.expander("📂 Xem chi tiết bảng dữ liệu"):
+                        st.dataframe(df_filtered, use_container_width=True)
+                        csv = df_filtered.to_csv(index=False).encode('utf-8-sig')
+                        st.download_button("📥 Tải CSV", data=csv, file_name="data.csv", mime="text/csv")
+        else:
+            st.error("Không có dữ liệu trong khoảng thời gian này.")
+
+    except Exception as e:
+        st.error(f"Lỗi hệ thống: {e}")
+
+else:
+    st.info("👈 Vui lòng tải file JSON ở thanh bên trái!")
