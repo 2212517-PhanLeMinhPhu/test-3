@@ -179,6 +179,70 @@ if uploaded_file is not None:
                         )
                     )
 
+                    # --- 3. HIỂN THỊ BIỂU ĐỒ (PHIÊN BẢN ĐẸP MẮT) ---
+        if time_col and not df_filtered.empty:
+            st.subheader("📈 Phân tích thông số")
+            df_filtered = df_filtered.dropna(subset=[time_col]).sort_values(by=time_col)
+            numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
+            if stt_col in numeric_cols: numeric_cols.remove(stt_col)
+            
+            if not numeric_cols:
+                st.warning("Không tìm thấy dữ liệu dạng số.")
+            else:
+                selected_metrics = st.multiselect("Chọn thông số hiển thị:", numeric_cols, default=[numeric_cols[0]])
+                
+                if selected_metrics:
+                    # Tạo biểu đồ với các đường cong mềm mại
+                    fig = px.line(
+                        df_filtered, 
+                        x=time_col, 
+                        y=selected_metrics, 
+                        template=plotly_template,
+                        color_discrete_sequence=px.colors.qualitative.Pastel # Màu sắc nhẹ nhàng, hiện đại
+                    )
+
+                    # Tinh chỉnh từng đường biểu đồ
+                    fig.update_traces(
+                        line_shape='spline', # Làm đường cong mềm mại
+                        line_width=3,         # Độ dày đường line
+                        mode='lines+markers', # Hiển thị cả đường và điểm
+                        marker=dict(size=6, opacity=0.7), 
+                        connectgaps=True      # Nối các điểm bị thiếu dữ liệu
+                    )
+
+                    # Thêm hiệu ứng đổ bóng phía dưới đường line (Fill area)
+                    # Lưu ý: Chỉ đổ bóng nếu chọn ít thông số để tránh rối mắt
+                    if len(selected_metrics) <= 2:
+                        fig.update_traces(fill='tozeroy', fillalpha=0.1)
+
+                    # Tinh chỉnh bố cục (Layout)
+                    fig.update_layout(
+                        hovermode='x unified', # Hiển thị tất cả giá trị tại một mốc thời gian khi rê chuột
+                        height=600,
+                        margin=dict(l=20, r=20, t=60, b=20),
+                        paper_bgcolor='rgba(0,0,0,0)', # Nền trong suốt
+                        plot_bgcolor='rgba(0,0,0,0)',  # Nền biểu đồ trong suốt
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="right",
+                            x=1,
+                            title=None
+                        ),
+                        xaxis=dict(
+                            showgrid=True, 
+                            gridcolor='rgba(128, 128, 128, 0.2)', # Lưới mờ
+                            title="Thời gian"
+                        ),
+                        yaxis=dict(
+                            showgrid=True, 
+                            gridcolor='rgba(128, 128, 128, 0.2)',
+                            title="Giá trị đo lường",
+                            fixedrange=False
+                        )
+                    )
+
                     # Hiển thị biểu đồ
                     st.plotly_chart(fig, use_container_width=True, config={'displaylogo': False})
                     
