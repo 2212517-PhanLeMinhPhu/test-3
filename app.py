@@ -5,25 +5,26 @@ import json
 import plotly.express as px
 
 # --- 0. CẤU HÌNH GIAO DIỆN ---
-st.set_page_config(page_title="JSON Data Pro", layout="wide", page_icon="📊")
+st.set_page_config(page_title="JSON Data Pro - Analytical", layout="wide", page_icon="📊")
 
 with st.sidebar:
     st.header("🎨 Giao diện")
-    dark_mode = st.toggle("Chế độ Tối", value=True)
+    dark_mode = st.toggle("Chế độ Tối (Dark Mode)", value=True)
 
 if dark_mode:
     bg_color, text_color, sidebar_bg = "#0E1117", "#FAFAFA", "#161b22"
+    accent_color = "#00d4ff"
     plotly_template = "plotly_dark"
-    grid_color = "rgba(255, 255, 255, 0.1)"
 else:
     bg_color, text_color, sidebar_bg = "#FFFFFF", "#31333F", "#F0F2F6"
+    accent_color = "#007BFF"
     plotly_template = "plotly"
-    grid_color = "rgba(0, 0, 0, 0.1)"
 
 st.markdown(f"""
     <style>
     .stApp {{ background-color: {bg_color}; color: {text_color}; }}
     [data-testid="stSidebar"] {{ background-color: {sidebar_bg}; border-right: 1px solid #30363d; }}
+    [data-testid="stFileUploaderDropzone"] {{ border: 2px dashed {accent_color} !important; border-radius: 12px; }}
     h1, h2, h3 {{ color: {text_color} !important; }}
     </style>
     """, unsafe_allow_html=True)
@@ -76,7 +77,7 @@ def load_and_process_data(file_bytes):
 # --- 2. SIDEBAR UPLOAD ---
 with st.sidebar:
     st.markdown("---")
-    uploaded_file = st.file_uploader("TẢI LÊN FILE JSON", type=['json'])
+    uploaded_file = st.file_uploader("TẢI LÊN FILE JSON QUAN TRẮC", type=['json'])
 
 # --- 3. HIỂN THỊ DỮ LIỆU ---
 if uploaded_file is not None:
@@ -85,9 +86,9 @@ if uploaded_file is not None:
         
         # BỘ LỌC SIDEBAR
         with st.sidebar:
-            st.header("🔍 Bộ lọc")
-            stt_col = next((c for c in df.columns if 'stt' in c.lower()), None)
+            st.header("🔍 Bộ lọc dữ liệu")
             
+            stt_col = next((c for c in df.columns if 'stt' in c.lower()), None)
             if stt_col:
                 stt_list = sorted(df[stt_col].dropna().unique().astype(str))
                 selected_stt = st.selectbox("Chọn Mã thiết bị (STT):", stt_list)
@@ -99,8 +100,15 @@ if uploaded_file is not None:
                 st.markdown("---")
                 temp_time = df_filtered[time_col].dropna()
                 if not temp_time.empty:
-                    min_date, max_date = temp_time.min().date(), temp_time.max().date()
-                    date_range = st.date_input("Khoảng thời gian:", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+                    min_date = temp_time.min().date()
+                    max_date = temp_time.max().date()
+                    
+                    date_range = st.date_input(
+                        "Chọn khoảng thời gian:",
+                        value=(min_date, max_date),
+                        min_value=min_date,
+                        max_value=max_date
+                    )
                     
                     if isinstance(date_range, tuple) and len(date_range) == 2:
                         start_date, end_date = date_range
@@ -114,51 +122,24 @@ if uploaded_file is not None:
             numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
             if stt_col in numeric_cols: numeric_cols.remove(stt_col)
             
-            if numeric_cols:
+            if not numeric_cols:
+                st.warning("Không tìm thấy dữ liệu dạng số.")
+            else:
                 selected_metrics = st.multiselect("Chọn thông số:", numeric_cols, default=[numeric_cols[0]])
                 if selected_metrics:
-                    # Sử dụng render mặc định để tránh lỗi shape
-                    fig = px.line(
-                        df_filtered, 
-                        x=time_col, 
-                        y=selected_metrics, 
-                        template=plotly_template,
-                        markers=True,
-                        color_discrete_sequence=px.colors.qualitative.Vivid
-                    )
+                    fig = px.line(df_filtered, x=time_col, y=selected_metrics, template=plotly_template, markers=True)
+                    fig.update_layout(hovermode='x unified', height=600)
+                    st.plotly_chart(fig, use_container_width=True)
                     
-                    # Cấu hình đường nét theo chuẩn linear an toàn
-                    fig.update_traces(
-                        line=dict(width=2),
-                        marker=dict(size=4),
-                        connectgaps=True
-                    )
-                    
-                    # Đổ bóng vùng dữ liệu (Fill)
-                    if len(selected_metrics) == 1:
-                        fig.update_traces(fill='tozeroy', fillalpha=0.15)
-
-                    fig.update_layout(
-                        hovermode='x unified',
-                        height=600,
-                        margin=dict(l=10, r=10, t=50, b=10),
-                        xaxis=dict(gridcolor=grid_color, title="Thời gian"),
-                        yaxis=dict(gridcolor=grid_color, title="Giá trị"),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True, config={'displaylogo': False})
-                    
-                    with st.expander("📂 Xem dữ liệu chi tiết"):
+                    with st.expander("📂 Xem chi tiết bảng dữ liệu"):
                         st.dataframe(df_filtered, use_container_width=True)
                         csv = df_filtered.to_csv(index=False).encode('utf-8-sig')
-                        st.download_button("📥 Tải CSV", data=csv, file_name="data_filtered.csv", mime="text/csv")
-            else:
-                st.warning("Không tìm thấy dữ liệu dạng số.")
+                        st.download_button("📥 Tải CSV", data=csv, file_name="data.csv", mime="text/csv")
         else:
-            st.error("Không có dữ liệu trong khoảng thời gian được chọn.")
+            st.error("Không có dữ liệu trong khoảng thời gian này.")
 
     except Exception as e:
-        st.error(f"Lỗi khi xử lý: {e}")
+        st.error(f"Lỗi hệ thống: {e}")
+
 else:
-    st.info("👈 Vui lòng tải file JSON ở menu bên trái!")
+    st.info("👈 Vui lòng tải file JSON ở thanh bên trái!")
