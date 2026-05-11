@@ -77,8 +77,9 @@ def parse_sensor_string(cell_value):
     try: return float(val_str)
     except ValueError: return val_str
 
+# Cập nhật: Đổi tên hàm để ép Streamlit xóa Cache cũ
 @st.cache_data
-def load_and_process_data(file_bytes):
+def process_sensor_data(file_bytes):
     raw_data = json.loads(file_bytes)
     if isinstance(raw_data, dict): raw_data = [raw_data]
     clean_json = normalize_keys(raw_data)
@@ -115,93 +116,101 @@ if uploaded_files:
         global_time_col = None
         
         for file in uploaded_files:
-            df_temp, time_col = load_and_process_data(file.getvalue())
-            df_temp['Tên File'] = file.name
+            df_temp, time_col = process_sensor_data(file.getvalue())
+            # Cập nhật: Thêm .copy() để tránh lỗi SettingWithCopy hoặc lỗi bộ nhớ cache
+            df_temp = df_temp.copy()
+            df_temp['Tên File'] = str(file.name)
             all_dfs.append(df_temp)
             if time_col:
                 global_time_col = time_col
                 
-        df = pd.concat(all_dfs, ignore_index=True)
-        
-        # --- BỘ LỌC DỮ LIỆU ---
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("🎛️ BỘ LỌC DỮ LIỆU")
-        
-        # 1. Bộ lọc MỚI: Chọn File để xem riêng biệt
-        file_list = df['Tên File'].unique().tolist()
-        selected_file = st.sidebar.selectbox("📂 Chọn File dữ liệu:", ["Tất cả (Gộp chung)"] + file_list)
-        
-        if selected_file != "Tất cả (Gộp chung)":
-            df = df[df['Tên File'] == selected_file]
-        
-        # 2. Bộ lọc STT & Tên Khu
-        stt_col = next((c for c in df.columns if 'stt' in c.lower()), None)
-        khu_col = next((c for c in df.columns if 'tên khu' in c.lower()), None)
-        
-        col1, col2 = st.sidebar.columns(2)
-        if stt_col:
-            stt_list = sorted(df[stt_col].dropna().unique().astype(str))
-            selected_stt = col1.selectbox("Mã thiết bị (STT):", ["Tất cả"] + stt_list)
-            if selected_stt != "Tất cả":
-                df = df[df[stt_col].astype(str) == selected_stt]
-                
-        if khu_col:
-            khu_list = sorted(df[khu_col].dropna().unique().astype(str))
-            selected_khu = col2.selectbox("Tên khu vực:", ["Tất cả"] + khu_list)
-            if selected_khu != "Tất cả":
-                df = df[df[khu_col].astype(str) == selected_khu]
-
-        df_filtered = df.copy()
-
-        if global_time_col and not df_filtered.empty:
-            if selected_file == "Tất cả (Gộp chung)":
-                st.subheader(f"📈 Biểu đồ thông số (Gộp {len(uploaded_files)} file)")
-            else:
-                st.subheader(f"📈 Biểu đồ thông số của file: {selected_file}")
-            
-            df_filtered = df_filtered.dropna(subset=[global_time_col]).sort_values(by=global_time_col, ascending=True)
-            
-            numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
-            if stt_col in numeric_cols: numeric_cols.remove(stt_col)
-            
-            if not numeric_cols:
-                st.warning("Không tìm thấy dữ liệu dạng số nào có thể vẽ biểu đồ.")
-            else:
-                selected_metrics = st.multiselect(
-                    "Chọn thông số hiển thị:", 
-                    numeric_cols, 
-                    default=[c for c in numeric_cols if c in ["Ec", "Ph", "Nhiệt độ ec"]] if numeric_cols else None
-                )
-
-                if selected_metrics:
-                    fig = px.line(
-                        df_filtered, 
-                        x=global_time_col, 
-                        y=selected_metrics, 
-                        template=plotly_template,
-                        markers=True 
-                    )
-                    
-                    fig.update_traces(line=dict(width=2.5), marker=dict(size=6))
-                    fig.update_layout(
-                        hovermode='x unified',
-                        paper_bgcolor='rgba(0,0,0,0)', 
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        xaxis_title="Thời gian",
-                        yaxis_title="Giá trị",
-                        legend=dict(title="Thông số", orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1)
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    with st.expander("🔍 Xem bảng dữ liệu chi tiết đã làm sạch"):
-                        cols = df_filtered.columns.tolist()
-                        first_cols = [c for c in [global_time_col, 'Tên File', khu_col, 'Trạng thái', 'Phương thức hoạt động'] if c in cols]
-                        rest_cols = [c for c in cols if c not in first_cols]
-                        st.dataframe(df_filtered[first_cols + rest_cols], use_container_width=True)
-                else:
-                    st.warning("Vui lòng chọn ít nhất một thông số để vẽ biểu đồ.")
+        if not all_dfs:
+            st.error("Không có dữ liệu hợp lệ trong các file đã tải lên.")
         else:
-            st.error("Dữ liệu trống hoặc không hợp lệ theo bộ lọc bạn chọn.")
+            df = pd.concat(all_dfs, ignore_index=True)
+            
+            # --- BỘ LỌC DỮ LIỆU BÊN SIDEBAR ---
+            st.sidebar.markdown("---")
+            st.sidebar.subheader("🎛️ BỘ LỌC DỮ LIỆU")
+            
+            # 1. Bộ lọc Chọn File (Đã bọc kiểm tra an toàn)
+            if 'Tên File' in df.columns:
+                file_list = df['Tên File'].dropna().unique().tolist()
+                selected_file = st.sidebar.selectbox("📂 Chọn File dữ liệu:", ["Tất cả (Gộp chung)"] + file_list)
+                if selected_file != "Tất cả (Gộp chung)":
+                    df = df[df['Tên File'] == selected_file]
+            else:
+                selected_file = "Tất cả (Gộp chung)"
+            
+            # 2. Bộ lọc STT & Tên Khu
+            stt_col = next((c for c in df.columns if 'stt' in c.lower()), None)
+            khu_col = next((c for c in df.columns if 'tên khu' in c.lower()), None)
+            
+            col1, col2 = st.sidebar.columns(2)
+            if stt_col:
+                stt_list = sorted(df[stt_col].dropna().unique().astype(str))
+                selected_stt = col1.selectbox("Mã thiết bị (STT):", ["Tất cả"] + stt_list)
+                if selected_stt != "Tất cả":
+                    df = df[df[stt_col].astype(str) == selected_stt]
+                    
+            if khu_col:
+                khu_list = sorted(df[khu_col].dropna().unique().astype(str))
+                selected_khu = col2.selectbox("Tên khu vực:", ["Tất cả"] + khu_list)
+                if selected_khu != "Tất cả":
+                    df = df[df[khu_col].astype(str) == selected_khu]
+
+            df_filtered = df.copy()
+
+            # --- VẼ BIỂU ĐỒ ---
+            if global_time_col and not df_filtered.empty:
+                if selected_file == "Tất cả (Gộp chung)":
+                    st.subheader(f"📈 Biểu đồ thông số (Đang xem {len(uploaded_files)} file)")
+                else:
+                    st.subheader(f"📈 Biểu đồ thông số: {selected_file}")
+                
+                df_filtered = df_filtered.dropna(subset=[global_time_col]).sort_values(by=global_time_col, ascending=True)
+                
+                numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
+                if stt_col in numeric_cols: numeric_cols.remove(stt_col)
+                
+                if not numeric_cols:
+                    st.warning("Không tìm thấy dữ liệu dạng số nào có thể vẽ biểu đồ.")
+                else:
+                    selected_metrics = st.multiselect(
+                        "Chọn thông số hiển thị:", 
+                        numeric_cols, 
+                        default=[c for c in numeric_cols if c in ["Ec", "Ph", "Nhiệt độ ec"]] if numeric_cols else None
+                    )
+
+                    if selected_metrics:
+                        fig = px.line(
+                            df_filtered, 
+                            x=global_time_col, 
+                            y=selected_metrics, 
+                            template=plotly_template,
+                            markers=True 
+                        )
+                        
+                        fig.update_traces(line=dict(width=2.5), marker=dict(size=6))
+                        fig.update_layout(
+                            hovermode='x unified',
+                            paper_bgcolor='rgba(0,0,0,0)', 
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            xaxis_title="Thời gian",
+                            yaxis_title="Giá trị",
+                            legend=dict(title="Thông số", orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1)
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        with st.expander("🔍 Xem bảng dữ liệu chi tiết đã làm sạch"):
+                            cols = df_filtered.columns.tolist()
+                            first_cols = [c for c in [global_time_col, 'Tên File', khu_col, 'Trạng thái', 'Phương thức hoạt động'] if c in cols]
+                            rest_cols = [c for c in cols if c not in first_cols]
+                            st.dataframe(df_filtered[first_cols + rest_cols], use_container_width=True)
+                    else:
+                        st.warning("Vui lòng chọn ít nhất một thông số để vẽ biểu đồ.")
+            else:
+                st.error("Dữ liệu bị trống hoặc không có thông tin thời gian hợp lệ sau khi lọc.")
     except Exception as e:
         st.error(f"Lỗi khi xử lý dữ liệu: {e}")
 else:
