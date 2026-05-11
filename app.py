@@ -29,6 +29,7 @@ st.markdown(f"""
     [data-testid="stSidebar"] {{ background-color: {sidebar_bg}; border-right: 1px solid #30363d; }}
     [data-testid="stFileUploaderDropzone"] {{ border: 2px dashed {accent_color} !important; border-radius: 12px; }}
     h1, h2, h3 {{ color: {text_color} !important; }}
+    .stMetric {{ background-color: {sidebar_bg}; padding: 10px; border-radius: 10px; border: 1px solid {accent_color}33; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -61,6 +62,7 @@ def load_and_process_data(file_bytes):
     flat_list = [flatten_json(item) for item in clean_json]
     df = pd.DataFrame(flat_list)
     
+    # Chuẩn hóa tên cột
     df.columns = df.columns.str.strip().str.capitalize()
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
     
@@ -68,14 +70,17 @@ def load_and_process_data(file_bytes):
     for col in df.columns:
         if any(k in col.lower() for k in ['thời gian', 'time']):
             time_col = col 
-            df[col] = pd.to_datetime(df[col], errors='coerce').dt.tz_localize(None)
+            # FIX LỖI MIXED TIMEZONES: ép về UTC sau đó gỡ múi giờ (localize None)
+            df[col] = pd.to_datetime(df[col], errors='coerce', utc=True).dt.tz_localize(None)
             break
             
     for col in df.columns:
         if col != time_col: 
             df[col] = pd.to_numeric(df[col], errors='coerce')
     
-    return df.dropna(axis=1, how='all'), time_col
+    # Loại bỏ cột trống hoàn toàn
+    df = df.dropna(axis=1, how='all')
+    return df, time_col
 
 # --- 2. GIAO DIỆN UPLOAD (SIDEBAR) ---
 with st.sidebar:
@@ -100,68 +105,6 @@ if uploaded_file is not None:
             else:
                 df_filtered = df.copy()
 
-            # 2. LỌC THEO NGÀY/THÁNG/NĂM (MỚI THÊM)
+            # 2. Lọc theo Khoảng ngày (Ngày/Tháng/Năm)
             if time_col and not df_filtered.empty:
                 st.markdown("---")
-                min_date = df_filtered[time_col].min().date()
-                max_date = df_filtered[time_col].max().date()
-                
-                # Bộ chọn khoảng ngày (bao quát cả ngày, tháng, năm)
-                date_range = st.date_input(
-                    "Chọn khoảng thời gian:",
-                    value=(min_date, max_date),
-                    min_value=min_date,
-                    max_value=max_date
-                )
-                
-                # Áp dụng bộ lọc thời gian
-                if isinstance(date_range, tuple) and len(date_range) == 2:
-                    start_date, end_date = date_range
-                    mask = (df_filtered[time_col].dt.date >= start_date) & (df_filtered[time_col].dt.date <= end_date)
-                    df_filtered = df_filtered.loc[mask]
-
-        # --- HIỂN THỊ BIỂU ĐỒ ---
-        if time_col and not df_filtered.empty:
-            st.subheader("📈 Phân tích thông số quan trắc")
-            
-            df_filtered = df_filtered.dropna(subset=[time_col]).sort_values(by=time_col)
-            numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
-            if stt_col in numeric_cols: numeric_cols.remove(stt_col)
-            
-            if not numeric_cols:
-                st.warning("Không tìm thấy dữ liệu dạng số.")
-            else:
-                selected_metrics = st.multiselect(
-                    "Chọn thông số cần xem:", 
-                    numeric_cols, 
-                    default=[numeric_cols[0]] if numeric_cols else None
-                )
-
-                if selected_metrics:
-                    fig = px.line(
-                        df_filtered, 
-                        x=time_col, 
-                        y=selected_metrics, 
-                        template=plotly_template,
-                        markers=True # Thêm điểm mốc để dễ nhìn dữ liệu rời rạc
-                    )
-                    
-                    fig.update_layout(
-                        hovermode='x unified',
-                        xaxis_title="Thời gian",
-                        yaxis_title="Giá trị",
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    with st.expander("📂 Xem chi tiết bảng dữ liệu đã lọc"):
-                        st.dataframe(df_filtered, use_container_width=True)
-                else:
-                    st.info("💡 Hãy chọn ít nhất một thông số ở trên để vẽ biểu đồ.")
-        else:
-            st.error("Không có dữ liệu trong khoảng thời gian đã chọn.")
-
-    except Exception as e:
-        st.error(f"Lỗi khi xử lý dữ liệu: {e}")
-else:
-    st.info("👈 Hãy tải file JSON ở thanh bên trái để bắt đầu phân tích!")
