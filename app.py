@@ -14,9 +14,11 @@ with st.sidebar:
 if dark_mode:
     bg_color, text_color, sidebar_bg = "#0E1117", "#FAFAFA", "#161b22"
     plotly_template = "plotly_dark"
+    grid_color = "rgba(255, 255, 255, 0.1)"
 else:
     bg_color, text_color, sidebar_bg = "#FFFFFF", "#31333F", "#F0F2F6"
     plotly_template = "plotly"
+    grid_color = "rgba(0, 0, 0, 0.1)"
 
 st.markdown(f"""
     <style>
@@ -115,21 +117,48 @@ if uploaded_file is not None:
             if numeric_cols:
                 selected_metrics = st.multiselect("Chọn thông số:", numeric_cols, default=[numeric_cols[0]])
                 if selected_metrics:
-                    fig = px.line(df_filtered, x=time_col, y=selected_metrics, template=plotly_template)
-                    fig.update_traces(line_shape='spline', line_width=3, mode='lines+markers', marker=dict(size=4))
-                    fig.update_layout(hovermode='x unified', height=550)
-                    st.plotly_chart(fig, use_container_width=True)
+                    # Sử dụng render mặc định để tránh lỗi shape
+                    fig = px.line(
+                        df_filtered, 
+                        x=time_col, 
+                        y=selected_metrics, 
+                        template=plotly_template,
+                        markers=True,
+                        color_discrete_sequence=px.colors.qualitative.Vivid
+                    )
                     
-                    with st.expander("📂 Xem dữ liệu"):
+                    # Cấu hình đường nét theo chuẩn linear an toàn
+                    fig.update_traces(
+                        line=dict(width=2),
+                        marker=dict(size=4),
+                        connectgaps=True
+                    )
+                    
+                    # Đổ bóng vùng dữ liệu (Fill)
+                    if len(selected_metrics) == 1:
+                        fig.update_traces(fill='tozeroy', fillalpha=0.15)
+
+                    fig.update_layout(
+                        hovermode='x unified',
+                        height=600,
+                        margin=dict(l=10, r=10, t=50, b=10),
+                        xaxis=dict(gridcolor=grid_color, title="Thời gian"),
+                        yaxis=dict(gridcolor=grid_color, title="Giá trị"),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True, config={'displaylogo': False})
+                    
+                    with st.expander("📂 Xem dữ liệu chi tiết"):
                         st.dataframe(df_filtered, use_container_width=True)
                         csv = df_filtered.to_csv(index=False).encode('utf-8-sig')
-                        st.download_button("📥 Tải CSV", data=csv, file_name="data.csv", mime="text/csv")
+                        st.download_button("📥 Tải CSV", data=csv, file_name="data_filtered.csv", mime="text/csv")
             else:
-                st.warning("Không có dữ liệu số.")
+                st.warning("Không tìm thấy dữ liệu dạng số.")
         else:
-            st.error("Không có dữ liệu phù hợp.")
+            st.error("Không có dữ liệu trong khoảng thời gian được chọn.")
 
     except Exception as e:
-        st.error(f"Lỗi: {e}")
+        st.error(f"Lỗi khi xử lý: {e}")
 else:
-    st.info("👈 Vui lòng tải file JSON!")
+    st.info("👈 Vui lòng tải file JSON ở menu bên trái!")
