@@ -5,26 +5,23 @@ import json
 import plotly.express as px
 
 # --- 0. CẤU HÌNH GIAO DIỆN ---
-st.set_page_config(page_title="JSON Data Pro - Analytical", layout="wide", page_icon="📊")
+st.set_page_config(page_title="JSON Data Pro", layout="wide", page_icon="📊")
 
 with st.sidebar:
     st.header("🎨 Giao diện")
-    dark_mode = st.toggle("Chế độ Tối (Dark Mode)", value=True)
+    dark_mode = st.toggle("Chế độ Tối", value=True)
 
 if dark_mode:
     bg_color, text_color, sidebar_bg = "#0E1117", "#FAFAFA", "#161b22"
-    accent_color = "#00d4ff"
     plotly_template = "plotly_dark"
 else:
     bg_color, text_color, sidebar_bg = "#FFFFFF", "#31333F", "#F0F2F6"
-    accent_color = "#007BFF"
     plotly_template = "plotly"
 
 st.markdown(f"""
     <style>
     .stApp {{ background-color: {bg_color}; color: {text_color}; }}
     [data-testid="stSidebar"] {{ background-color: {sidebar_bg}; border-right: 1px solid #30363d; }}
-    [data-testid="stFileUploaderDropzone"] {{ border: 2px dashed {accent_color} !important; border-radius: 12px; }}
     h1, h2, h3 {{ color: {text_color} !important; }}
     </style>
     """, unsafe_allow_html=True)
@@ -64,7 +61,6 @@ def load_and_process_data(file_bytes):
     for col in df.columns:
         if any(k in col.lower() for k in ['thời gian', 'time']):
             time_col = col 
-            # Fix Mixed Timezone
             df[col] = pd.to_datetime(df[col], errors='coerce', utc=True).dt.tz_localize(None)
             break
             
@@ -78,7 +74,7 @@ def load_and_process_data(file_bytes):
 # --- 2. SIDEBAR UPLOAD ---
 with st.sidebar:
     st.markdown("---")
-    uploaded_file = st.file_uploader("TẢI LÊN FILE JSON QUAN TRẮC", type=['json'])
+    uploaded_file = st.file_uploader("TẢI LÊN FILE JSON", type=['json'])
 
 # --- 3. HIỂN THỊ DỮ LIỆU ---
 if uploaded_file is not None:
@@ -87,9 +83,53 @@ if uploaded_file is not None:
         
         # BỘ LỌC SIDEBAR
         with st.sidebar:
-            st.header("🔍 Bộ lọc dữ liệu")
+            st.header("🔍 Bộ lọc")
             stt_col = next((c for c in df.columns if 'stt' in c.lower()), None)
+            
             if stt_col:
                 stt_list = sorted(df[stt_col].dropna().unique().astype(str))
                 selected_stt = st.selectbox("Chọn Mã thiết bị (STT):", stt_list)
-                df_filtered = df[df[stt_col].astype(str) == selected_stt].copy
+                df_filtered = df[df[stt_col].astype(str) == selected_stt].copy()
+            else:
+                df_filtered = df.copy()
+
+            if time_col and not df_filtered.empty:
+                st.markdown("---")
+                temp_time = df_filtered[time_col].dropna()
+                if not temp_time.empty:
+                    min_date, max_date = temp_time.min().date(), temp_time.max().date()
+                    date_range = st.date_input("Khoảng thời gian:", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+                    
+                    if isinstance(date_range, tuple) and len(date_range) == 2:
+                        start_date, end_date = date_range
+                        mask = (df_filtered[time_col].dt.date >= start_date) & (df_filtered[time_col].dt.date <= end_date)
+                        df_filtered = df_filtered.loc[mask]
+
+        # HIỂN THỊ BIỂU ĐỒ
+        if time_col and not df_filtered.empty:
+            st.subheader("📈 Phân tích thông số")
+            df_filtered = df_filtered.dropna(subset=[time_col]).sort_values(by=time_col)
+            numeric_cols = df_filtered.select_dtypes(include=[np.number]).columns.tolist()
+            if stt_col in numeric_cols: numeric_cols.remove(stt_col)
+            
+            if numeric_cols:
+                selected_metrics = st.multiselect("Chọn thông số:", numeric_cols, default=[numeric_cols[0]])
+                if selected_metrics:
+                    fig = px.line(df_filtered, x=time_col, y=selected_metrics, template=plotly_template)
+                    fig.update_traces(line_shape='spline', line_width=3, mode='lines+markers', marker=dict(size=4))
+                    fig.update_layout(hovermode='x unified', height=550)
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    with st.expander("📂 Xem dữ liệu"):
+                        st.dataframe(df_filtered, use_container_width=True)
+                        csv = df_filtered.to_csv(index=False).encode('utf-8-sig')
+                        st.download_button("📥 Tải CSV", data=csv, file_name="data.csv", mime="text/csv")
+            else:
+                st.warning("Không có dữ liệu số.")
+        else:
+            st.error("Không có dữ liệu phù hợp.")
+
+    except Exception as e:
+        st.error(f"Lỗi: {e}")
+else:
+    st.info("👈 Vui lòng tải file JSON!")
