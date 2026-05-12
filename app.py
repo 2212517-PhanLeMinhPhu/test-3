@@ -29,15 +29,33 @@ def apply_theme():
     if st.session_state.theme == "Dark":
         st.markdown("""
             <style>
-            /* Nền chính và văn bản */
+            /* Nền chính và văn bản tổng thể */
             .stApp {
                 background-color: #0E1117;
                 color: #FFFFFF;
             }
+            
+            /* TÙY CHỈNH FILE UPLOADER TRONG DARK MODE */
+            /* 1. Màu chữ của nhãn (Label) */
+            div[data-testid="stFileUploader"] label {
+                color: #FFFFFF !important;
+            }
+            /* 2. Màu chữ hướng dẫn (Drag and drop file here) */
+            div[data-testid="stFileUploader"] section {
+                color: #FFFFFF !important;
+                background-color: #161B22; /* Làm nền uploader tối hơn một chút */
+                border: 1px dashed #30363D;
+            }
+            /* 3. Màu chữ thông tin file hạn chế (Limit 200MB...) */
+            div[data-testid="stFileUploader"] small {
+                color: #8B949E !important;
+            }
+
             /* Định dạng bảng dữ liệu */
             .stDataFrame, div[data-testid="stTable"] {
                 background-color: #161B22;
             }
+            
             /* Định dạng Tab */
             .stTabs [data-baseweb="tab-list"] {
                 background-color: #0E1117;
@@ -51,6 +69,7 @@ def apply_theme():
             </style>
             """, unsafe_allow_html=True)
     else:
+        # Chế độ Light Mode (Mặc định của Streamlit)
         st.markdown("""
             <style>
             .stApp {
