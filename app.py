@@ -10,7 +10,57 @@ import io
 # --- CẤU HÌNH TRANG & THÔNG SỐ TỐI ƯU ---
 # ==============================================================================
 st.set_page_config(page_title="JSON Data Pro (Optimized)", layout="wide", page_icon="🌱")
+# --- CẤU HÌNH THEME ---
+if 'theme' not in st.session_state:
+    st.session_state.theme = 'Light'
+
+def toggle_theme():
+    st.session_state.theme = 'Dark' if st.session_state.theme == 'Light' else 'Light'
+
+# Thêm nút gạt ở Sidebar
+st.sidebar.markdown("### 🎨 GIAO DIỆN")
+theme_choice = st.sidebar.radio("Chọn chế độ hiển thị:", ["Sáng", "Tối"], 
+                                 index=0 if st.session_state.theme == 'Light' else 1,
+                                 key="theme_toggle_radio")
+st.session_state.theme = "Dark" if theme_choice == "Tối" else "Light"
 st.title("🌱 Công cụ Phân tích Dữ liệu Nông Nghiệp")
+
+def apply_theme():
+    if st.session_state.theme == "Dark":
+        st.markdown("""
+            <style>
+            /* Nền chính và văn bản */
+            .stApp {
+                background-color: #0E1117;
+                color: #FFFFFF;
+            }
+            /* Định dạng bảng dữ liệu */
+            .stDataFrame, div[data-testid="stTable"] {
+                background-color: #161B22;
+            }
+            /* Định dạng Tab */
+            .stTabs [data-baseweb="tab-list"] {
+                background-color: #0E1117;
+            }
+            .stTabs [data-baseweb="tab"] {
+                color: #8B949E;
+            }
+            .stTabs [aria-selected="true"] {
+                color: #58A6FF;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+            <style>
+            .stApp {
+                background-color: #FFFFFF;
+                color: #000000;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+apply_theme()
 
 KHOANG_TOI_UU = {
     'TEMPKK': (-10.0, 100.0),       
@@ -170,20 +220,32 @@ def extract_sensor_data(df, selected_cols):
 def generate_chart(df, title, is_multi=False):
     num_points = len(df)
     use_webgl = 'webgl' if num_points > 1000 else 'svg'
-    show_markers = num_points <= 500 # Tắt marker nếu quá nhiều điểm để mượt hơn
+    show_markers = num_points <= 500
+    
+    # Chọn template dựa trên theme
+    plotly_template = "plotly_dark" if st.session_state.theme == "Dark" else "plotly_white"
     
     if is_multi:
-        fig = px.line(df, x='TG', y='Giá trị', color='Chỉ số', markers=show_markers, render_mode=use_webgl,
-                     color_discrete_sequence=px.colors.qualitative.Set1)
+        fig = px.line(df, x='TG', y='Giá trị', color='Chỉ số', 
+                      markers=show_markers, render_mode=use_webgl,
+                      color_discrete_sequence=px.colors.qualitative.Set1,
+                      template=plotly_template)
     else:
-        fig = px.line(df, x='TG', y='Giá trị', markers=show_markers, render_mode=use_webgl)
+        fig = px.line(df, x='TG', y='Giá trị', 
+                      markers=show_markers, render_mode=use_webgl,
+                      template=plotly_template)
         
     fig.update_layout(
-        title=f"<b>{title}</b>", xaxis_title="Thời gian", yaxis_title="Giá trị",
-        hovermode="x unified", dragmode='pan',
+        title=f"<b>{title}</b>", 
+        xaxis_title="Thời gian", 
+        yaxis_title="Giá trị",
+        hovermode="x unified", 
+        dragmode='pan',
+        paper_bgcolor='rgba(0,0,0,0)', # Làm nền trong suốt
+        plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(rangeslider=dict(visible=False), type="date")
     )
-    # Tắt spikes nếu webGL bật để tránh xung đột hiệu năng đồ họa
+    
     if num_points <= 1000:
         fig.update_xaxes(showspikes=True, spikecolor="gray", spikesnap="cursor", spikemode="across")
         fig.update_yaxes(showspikes=True, spikecolor="gray", spikemode="across")
