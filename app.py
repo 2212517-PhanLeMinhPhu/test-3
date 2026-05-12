@@ -38,7 +38,7 @@ def apply_theme():
             /* TÙY CHỈNH FILE UPLOADER TRONG DARK MODE */
             /* 1. Màu chữ của nhãn (Label) */
             div[data-testid="stFileUploader"] label {
-                color: #FFFFFF !important;
+                color: #0F0F0F !important;
             }
             /* 2. Màu chữ hướng dẫn (Drag and drop file here) */
             div[data-testid="stFileUploader"] section {
