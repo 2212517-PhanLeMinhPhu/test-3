@@ -36,6 +36,7 @@ PATTERN_NUMBER = re.compile(r'[-+]?\d*\.?\d+')
 # 1. CÁC HÀM XỬ LÝ LÕI (CÓ CACHE)
 # ==============================================================================
 @st.cache_data(show_spinner=False)
+#Chuẩn hóa toàn bộ các từ khóa (keys) trong dữ liệu JSON bằng cách xóa khoảng trắng thừa và chuyển về chữ thường
 def normalize_keys(data):
     if isinstance(data, list):
         return [normalize_keys(item) for item in data]
@@ -43,6 +44,7 @@ def normalize_keys(data):
         return {str(k).strip().lower(): normalize_keys(v) for k, v in data.items()}
     return data
 
+#Chuyển đổi cấu trúc JSON phân cấp (nhiều lớp lồng nhau) thành một từ điển phẳng (một lớp duy nhất), trong đó các khóa được nối với nhau bằng dấu chấm.
 @st.cache_data(show_spinner=False)
 def flatten_json(y):
     out = {}
@@ -58,6 +60,7 @@ def flatten_json(y):
     flatten(y)
     return out
 
+#Hàm này dùng để điều phối chính để nạp file. Nó giải mã JSON, gọi hàm chuẩn hóa, làm phẳng dữ liệu, loại bỏ cột trống/trùng lặp và xử lý định dạng thời gian(_parsed_time)
 @st.cache_data(show_spinner=False)
 def load_and_process_data(file_bytes):
     try:
@@ -88,6 +91,7 @@ def load_and_process_data(file_bytes):
 # ==============================================================================
 # 2. CÁC HÀM TIỆN ÍCH CHO BIỂU ĐỒ & BỘ LỌC
 # ==============================================================================
+#Tạo giao diện người dùng (UI) trên Streamlit để chọn khoảng thời gian theo các chế độ: tùy chọn, tuần, tháng hoặc quý.
 def render_date_filter(min_date, max_date, key_prefix):
     if not min_date: return None, None
     
@@ -121,6 +125,7 @@ def render_date_filter(min_date, max_date, key_prefix):
 
 # Tối ưu: Đã thêm cache cho quá trình bóc tách tốn tài nguyên
 @st.cache_data(show_spinner=False)
+#Đây là hàm xử lý chuyên sâu cho dữ liệu cảm biến nông nghiệp. Nó sử dụng Biểu thức chính quy (Regex) để tách các cặp giá trị/ thời gian phức tạp nằm trong các ô dữ liệu.
 def extract_sensor_data(df, selected_cols):
     records = []
     cols_to_extract = ['_parsed_time'] + selected_cols
@@ -161,6 +166,7 @@ def extract_sensor_data(df, selected_cols):
                     
     return pd.DataFrame(records)
 
+#Khởi tạo biểu đồ đường (line chart) bằng thư viện Plotly. Hàm này tự động chọn chế độ dựng hình (WebGL cho dữ liệu lớn để mượt hơn) và cấu hình các thuộc tính như hanh trượt, điểm đánh dấu (markers) và đường hỗ trợ soi dữ liệu (spikes).
 def generate_chart(df, title, is_multi=False):
     num_points = len(df)
     use_webgl = 'webgl' if num_points > 1000 else 'svg'
