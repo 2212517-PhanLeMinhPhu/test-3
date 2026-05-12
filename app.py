@@ -145,12 +145,15 @@ def extract_sensor_data(df, selected_cols):
                     try:
                         full_t_str = f"{date_str} {t_str.replace('-', ':')}"
                         records.append({'TG': pd.to_datetime(full_t_str), 'Giá trị': process_val(v_str), 'Chỉ số': col_upper})
-except Exception:
+                    except Exception:
                         pass
             else:
                 num_match = re.search(r'[-+]?\d*\.?\d+', val)
                 if num_match:
-                    records.append({'TG': main_time, 'Giá trị': process_val(num_match.group()), 'Chỉ số': col_upper})
+                    try: # Thêm try except để đảm bảo an toàn cho dữ liệu số thường
+                        records.append({'TG': main_time, 'Giá trị': process_val(num_match.group()), 'Chỉ số': col_upper})
+                    except Exception:
+                        pass
                     
     return pd.DataFrame(records)
 
@@ -161,7 +164,7 @@ def generate_chart(df, title, is_multi=False):
     
     if is_multi:
         fig = px.line(df, x='TG', y='Giá trị', color='Chỉ số', markers=show_markers, render_mode=use_webgl,
-                      color_discrete_sequence=px.colors.qualitative.Set1)
+                     color_discrete_sequence=px.colors.qualitative.Set1)
     else:
         fig = px.line(df, x='TG', y='Giá trị', markers=show_markers, render_mode=use_webgl)
         
@@ -202,7 +205,7 @@ if uploaded_file is not None:
                     st.stop()
 
         exclude = [time_col, 'stt', 'tên khu', 'trạng thái', 'phương thức hoạt động', 'người điều khiển', '_parsed_time']
-numeric_options = [c for c in df.columns if c not in exclude and '_id' not in c]
+        numeric_options = [c for c in df.columns if c not in exclude and '_id' not in c]
 
         min_d, max_d = None, None
         if '_parsed_time' in df.columns:
@@ -257,7 +260,7 @@ numeric_options = [c for c in df.columns if c not in exclude and '_id' not in c]
                         # LOGIC ÉP BUỘC LÀM MƯỢT TRUNG BÌNH THEO NGÀY NẾU > 2 NGÀY
                         days_diff = (end_d_2 - start_d_2).days if (start_d_2 and end_d_2) else 0
                         rule = "1D" if days_diff > 2 else None
-if rule == "1D":
+                        if rule == "1D":
                             st.info("💡 Do khoảng thời gian bạn chọn > 2 ngày, hệ thống đã ngầm tự động gộp và tính trung bình các số liệu theo từng ngày để biểu đồ trực quan, dễ nhìn hơn.")
 
                         for col in selected_keys_2:
@@ -303,7 +306,7 @@ if rule == "1D":
 
             if st.button("🚀 TẠO BIỂU ĐỒ ĐỐI CHIẾU", type="primary", key="btn_multi"):
                 if len(selected_keys_3) < 2:
-st.warning("Hãy chọn ít nhất 2 chỉ số!")
+                    st.warning("Hãy chọn ít nhất 2 chỉ số!")
                 elif not start_d_3 or not end_d_3:
                     st.warning("Vui lòng chọn khoảng thời gian hợp lệ!")
                 else:
@@ -346,7 +349,7 @@ st.warning("Hãy chọn ít nhất 2 chỉ số!")
                             
                             trang_thai_loc_3 = "Đã lọc sạch" if filter_data_3 else "Chưa lọc - Gốc 100%"
                             with st.expander(f"📋 Bảng số liệu gộp của biểu đồ trên để đối chứng ({pts} điểm - {trang_thai_loc_3})"):
-pivot_df = plot_data.pivot(index='TG', columns='Chỉ số', values='Giá trị').reset_index()
+                                pivot_df = plot_data.pivot(index='TG', columns='Chỉ số', values='Giá trị').reset_index()
                                 st.dataframe(pivot_df, use_container_width=True)
                     else: st.info("Không có dữ liệu hợp lệ trong khoảng thời gian này.")
 
